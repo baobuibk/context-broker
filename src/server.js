@@ -1,17 +1,15 @@
 const express = require("express");
-const cors = require("cors");
-
-const entityRoute = require("./routes/entity.route");
-const telemetryRoute = require("./routes/telemetry.route");
-const provisionRoute = require("./routes/provision.route");
-
 const app = express();
 
+// const cors = require("cors");
 // app.use(cors());
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+const entityRoute = require("./routes/entity.route");
+const telemetryRoute = require("./routes/telemetry.route");
+const provisionRoute = require("./routes/provision.route");
 app.use("/entity", entityRoute);
 app.use("/telemetry", telemetryRoute);
 app.use("/provision", provisionRoute);
