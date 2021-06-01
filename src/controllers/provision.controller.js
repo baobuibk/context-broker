@@ -73,13 +73,14 @@ class ProvisionController {
           ...channelRecord,
         };
         try {
-          const result = await EntityDAO.upsertOne({
+          let result = await EntityDAO.upsertOne({
             parent: entity,
             data,
             alias,
             record,
             queries: { device_id },
           });
+          result.device_id = device_id;
           return result;
         } catch (error) {
           console.log(error);
