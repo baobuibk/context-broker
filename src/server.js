@@ -7,6 +7,9 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+const morganLogger = require("morgan");
+app.use(morganLogger("dev"));
+
 const entityRoute = require("./routes/entity.route");
 const telemetryRoute = require("./routes/telemetry.route");
 const provisionRoute = require("./routes/provision.route");
