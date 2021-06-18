@@ -14,6 +14,8 @@ app.use("/entity", entityRoute);
 app.use("/telemetry", telemetryRoute);
 app.use("/provision", provisionRoute);
 
+app.get("/check", (req, res) => res.send("ok"));
+
 app.use("/", express.static("build"));
 app.use("*", (req, res) => res.status(404).json({ error: "not found" }));
 
