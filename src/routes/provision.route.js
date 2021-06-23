@@ -1,12 +1,12 @@
 const express = require("express");
 const router = express.Router();
 
-const ProvisionController = require("../controllers/provision.controller");
+const Provision = require("../controllers/provision.controller");
 
-router.get("/begin", ProvisionController.begin);
-router.get("/end", ProvisionController.end);
-router.get("/status", ProvisionController.status);
-router.get("/retrieve", ProvisionController.retrieve);
-router.post("/", ProvisionController.request);
+router.get("/begin", Provision.begin);
+router.get("/end", Provision.end);
+router.get("/status", Provision.status);
+router.get("/retrieve", Provision.retrieve);
+router.post("/", Provision.request);
 
 module.exports = router;

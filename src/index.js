@@ -4,19 +4,19 @@ const MongoClient = require("mongodb").MongoClient;
 const EntityDAO = require("./daos/entity.DAO");
 const RecordDAO = require("./daos/record.DAO");
 
-const DB_URI = process.env.DB_URI;
-const client = new MongoClient(DB_URI, {
+const MONGODB_URI = process.env.MONGODB_URI;
+const client = new MongoClient(MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 });
 
-const DB_NAME = process.env.DB_NAME;
+const DATABASE = process.env.DATABASE;
 client
   .connect()
   .then(async () => {
     console.log("connected to mongodb");
 
-    const db = client.db(DB_NAME);
+    const db = client.db(DATABASE);
 
     await EntityDAO.addSchema(db);
     EntityDAO.inject(db);

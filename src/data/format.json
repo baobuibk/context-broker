@@ -1,0 +1,108 @@
+{
+  "provisionRequest": {
+    "entity": "60d1e3970340f939d390e8b6",
+    "data": [
+      {
+        "device_id": "01",
+        "device_name": "inverter01",
+        "device_kind": "inverter",
+        "device_channels": [
+          {
+            "channel_id": "01",
+            "channel_name": "voltage",
+            "channel_type": "number",
+            "channel_commands": [
+              [
+                "write",
+                {
+                  "type": "number",
+                  "multipleOf": 1,
+                  "maximum": 250,
+                  "minimum": 0
+                }
+              ],
+              ["read"]
+            ]
+          },
+          {
+            "channel_id": "02",
+            "channel_name": "current",
+            "channel_type": "number",
+            "channel_commands": [
+              [
+                "set",
+                {
+                  "type": "string",
+                  "enum": ["off", "on"]
+                }
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "device_id": "02",
+        "device_name": "inverter02",
+        "device_kind": "inverter",
+        "device_channels": [
+          {
+            "channel_id": "01",
+            "channel_name": "voltage",
+            "channel_type": "number",
+            "channel_commands": [
+              [
+                "write",
+                {
+                  "type": "boolean",
+                  "enum": [true, false]
+                }
+              ]
+            ]
+          },
+          {
+            "channel_id": "02",
+            "channel_name": "current",
+            "channel_type": "number",
+            "channel_commands": [
+              [
+                "write",
+                {
+                  "type": ["number", "string", "boolean"],
+                  "enum": ["on", "off", 1, 0, true, false]
+                }
+              ]
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "provisionResponse": {
+    "data": [
+      {
+        "device_id": "10",
+        "device_channels": [
+          {
+            "channel_id": "100",
+            "command": "read"
+          }
+        ]
+      }
+    ]
+  },
+  "data": {
+    "deviceId1": {
+      "channels": {
+        "channelId1": 1,
+        "channelId2": 1
+      }
+    },
+    "deviceId2": {
+      "channels": {
+        "channelId1": 1,
+        "channelId2": 1,
+        "channelId3": 0
+      }
+    }
+  }
+}

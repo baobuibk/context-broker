@@ -223,18 +223,14 @@ class EntityDAO {
   }
 
   // updateOne
-  static async updateOne({
-    id,
-    parent,
-    ancestor,
-    data,
-    alias,
-    link,
-    record,
-    queries,
-  }) {
+  static async updateOne(props) {
+    const { id, parent, ancestor, data, alias, link, record, queries } = props;
+
+    // for uses in mongodb update command
     let setObj = {};
+    // for uses in mongodb update command
     let projectionObj = {};
+
     for (const attr in data) {
       setObj["attrs." + attr + ".type"] = "data";
       setObj["attrs." + attr + ".value"] = data[attr];
