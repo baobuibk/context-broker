@@ -78,30 +78,19 @@
     ]
   },
   "provisionResponse": {
-    "data": [
-      {
-        "device_id": "10",
-        "device_channels": [
-          {
-            "channel_id": "100",
-            "command": "read"
-          }
-        ]
-      }
-    ]
-  },
-  "data": {
-    "deviceId1": {
-      "channels": {
-        "channelId1": 1,
-        "channelId2": 1
-      }
-    },
-    "deviceId2": {
-      "channels": {
-        "channelId1": 1,
-        "channelId2": 1,
-        "channelId3": 0
+    "data": {
+      "deviceId1": {
+        "channels": {
+          "channelId1": 1,
+          "channelId2": 1
+        }
+      },
+      "deviceId2": {
+        "channels": {
+          "channelId1": 1,
+          "channelId2": 1,
+          "channelId3": 0
+        }
       }
     }
   }

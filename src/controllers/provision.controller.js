@@ -49,14 +49,14 @@ exports.request = async (req, res) => {
 
   if (!sessions[entity]) return res.status(401).send("unavailable");
 
-  let returnObj = {}; // !!!
-  let result = await Promise.all(
+  let result = {};
+  await Promise.all(
     data.map(async (device) => {
       const { device_id, device_name, device_kind, device_channels } = device;
       if (!(device_id && device_name && device_kind && device_channels))
         return false;
 
-      returnObj[device_id] = {}; // !!!
+      result[device_id] = {}; // !!!
 
       let channelData = {};
       let channelAlias = {};
@@ -65,7 +65,6 @@ exports.request = async (req, res) => {
         channelData[channel.channel_id] = null;
         channelAlias[channel.channel_name] = channel.channel_id;
         channelRecord[channel.channel_id] = true;
-        returnObj[device_id][channel.channel_id] = 1;
       }
       const data = {
         kind: "Device",
@@ -83,26 +82,32 @@ exports.request = async (req, res) => {
       const record = {
         ...channelRecord,
       };
+
+      // For every device
       try {
-        let result = await EntityDAO.upsertOne({
+        let { ok } = await EntityDAO.upsertOne({
           parent: entity,
           data,
           alias,
           record,
           queries: { device_id },
         });
-        result.device_id = device_id;
-        return result;
+
+        for (const channel of device_channels) {
+          result[device_id][channel.channel_id] = ok;
+        }
       } catch (error) {
-        console.log(error);
-        return false;
+        console.log(error.message);
+        for (const channel of device_channels) {
+          result[device_id][channel.channel_id] = 0;
+        }
       }
     })
   );
   return res.json({ data: result });
 };
 
-// result
+// retrieve result
 exports.retrieve = async (req, res) => {
   const { entity } = req.query;
   if (!entity) return res.status(400).send("need entity");

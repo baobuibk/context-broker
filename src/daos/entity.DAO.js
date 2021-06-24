@@ -35,18 +35,19 @@ class EntityDAO {
   }
 
   // add
-  static async add({ parent: parentId, data, alias, link, record }) {
+  static async add(props) {
+    const { parent, data, alias, link, record } = props;
     // path, ancestor feature
-    if (parentId) {
-      const query = { _id: ObjectId(parentId) };
+    if (parent) {
+      const query = { _id: ObjectId(parent) };
       const options = { projection: { path: 1 } };
-      const parent = await Entity.findOne(query, options);
-      if (!parent) {
+      const parentDoc = await Entity.findOne(query, options);
+      if (!parentDoc) {
         console.log("parent not found");
         return null;
       }
-      const parentPath = parent.path;
-      var path = parentPath ? parentPath + "," + parentId : parentId;
+      const parentPath = parentDoc.path;
+      var path = parentPath ? parentPath + "," + parent : parent;
     } else {
       var path = "";
     }
@@ -74,7 +75,7 @@ class EntityDAO {
     }
     const newEntity = {
       path,
-      ...(parentId && { parent: ObjectId(parentId) }),
+      ...(parent && { parent: ObjectId(parent) }),
       attrs: attrsObj,
     };
     const { connection, message, ...result } = await Entity.insertOne(
@@ -136,18 +137,23 @@ class EntityDAO {
     };
     const update = { $set: setObj };
     const options = { upsert: true };
-    const { result } = await Entity.updateOne(filter, update, options);
-    const m = result.nModified;
-    const u = result.upserted;
+    const {
+      result,
+      modifiedCount: mod,
+      upsertedCount: ups,
+      matchedCount: mat,
+    } = await Entity.updateOne(filter, update, options);
+
+    const ok = result.ok;
     const status =
-      !m && !u
-        ? "unchanged"
-        : !m && u
+      !mod && !ups && mat
+        ? "unmodified"
+        : mod && !ups && mat
+        ? "modified"
+        : !mod && ups && !mat
         ? "upserted"
-        : m && !u
-        ? "updated"
         : "error";
-    return { ok: result.ok, status };
+    return { ok, status };
   }
 
   // getById
@@ -232,6 +238,7 @@ class EntityDAO {
     let projectionObj = {};
 
     for (const attr in data) {
+      // neet to set invidually because of existence of record property!
       setObj["attrs." + attr + ".type"] = "data";
       setObj["attrs." + attr + ".value"] = data[attr];
       projectionObj["attrs." + attr] = 1;
@@ -250,6 +257,7 @@ class EntityDAO {
       };
       projectionObj["attrs." + attr] = 1;
     }
+    // record property mentioned is here
     for (const attr in record) {
       setObj["attrs." + attr + ".record"] = record[attr];
     }
