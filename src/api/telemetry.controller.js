@@ -1,4 +1,4 @@
-const EntityDAO = require("../daos/entity.DAO");
+const EntityDAO = require("./entity.DAO");
 
 class TelemetryController {
   // request
@@ -11,8 +11,9 @@ class TelemetryController {
         try {
           return (result[device_id] = await EntityDAO.updateOne({
             parent: entity,
-            data: { lastTelemetry: timestamp, ...channelData },
+            data: channelData,
             queries: { device_id },
+            timestamp,
           }));
         } catch (error) {
           console.log(error);

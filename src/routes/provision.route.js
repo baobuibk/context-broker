@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
-const Provision = require("../controllers/provision.controller");
+const Provision = require("../api/provision.controller");
 
 router.get("/begin", Provision.begin);
 router.get("/end", Provision.end);

@@ -1,4 +1,4 @@
-const EntityDAO = require("../daos/entity.DAO");
+const EntityDAO = require("./entity.DAO");
 
 const PROVISION_TIMEOUT = process.env.PROVISION_TIMEOUT || 120000;
 let sessions = {};

@@ -1,12 +1,12 @@
-const EntityDAO = require("../daos/entity.DAO");
+const EntityDAO = require("./entity.DAO");
 
 class EntityController {
   // add
   static async add(req, res) {
-    const { parent, data, alias, link } = req.body;
+    const { parent, data, alias, link, record } = req.body;
 
     try {
-      const result = await EntityDAO.add({ parent, data, alias, link });
+      const result = await EntityDAO.add({ parent, data, alias, link, record });
       return res.json({ data: result });
     } catch (error) {
       console.log(error);
@@ -35,10 +35,16 @@ class EntityController {
 
   // update
   static async update(req, res) {
-    const { id, data, alias, link } = req.body;
+    const { id, data, alias, link, record } = req.body;
     try {
       if (id) {
-        const result = await EntityDAO.updateOne({ id, data, alias, link });
+        const result = await EntityDAO.updateOne({
+          id,
+          data,
+          alias,
+          link,
+          record,
+        });
         return res.json({ data: { ok: result.ok } });
       } else return res.sendStatus(400);
     } catch (error) {
@@ -67,19 +73,25 @@ class EntityController {
   }
 
   static async getRecords(req, res) {
-    const { id, attrs, from, to, date } = req.query;
-    if (!id || !attrs) res.sendStatus(400);
+    const { id, attrs, year, month, day, hour, minute, half, quarter, filter } =
+      req.query;
+    if (!id || !attrs || !year || !month) res.sendStatus(400);
     try {
-      const result = await EntityDAO.getRecordsForOne({
+      const result = await EntityDAO.getRecordsById({
         id,
         attrs,
-        from,
-        to,
-        date,
+        year,
+        month,
+        day,
+        hour,
+        minute,
+        half,
+        quarter,
+        filter,
       });
       return res.json({ data: result });
     } catch (error) {
-      console.log(error);
+      console.log(error.message);
       return res.sendStatus(500);
     }
   }
