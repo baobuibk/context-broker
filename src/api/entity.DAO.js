@@ -78,7 +78,7 @@ class EntityDAO {
 
     const newEntity = {
       path,
-      parent: parentId ? ObjectId(parent) : null,
+      parent: parentId ? ObjectId(parentId) : null,
       attrs: attrsObj,
     };
     const { insertedId } = await Entity.insertOne(newEntity);
