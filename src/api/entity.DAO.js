@@ -305,7 +305,7 @@ class EntityDAO {
         if (attr.type === "data" && attr.record === true) {
           const sample = {
             v: attr.value,
-            t: timestamp ? timestamp : new Date(),
+            t: timestamp ? new Date(timestamp) : new Date(),
           };
           return await RecordDAO.addOneSample(
             updatedEntity._id,
