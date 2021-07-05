@@ -36,18 +36,18 @@ class EntityDAO {
    * @returns {Object}
    */
   static async add(props) {
-    const { parent: parentId, data, alias, link, record } = props;
+    const { parent, data, alias, link, record } = props;
 
-    const parentEntity = parentId
+    const parentEntity = parent
       ? await Entity.findOne(
-          { _id: ObjectId(parentId) },
+          { _id: ObjectId(parent) },
           { projection: { path: 1 } }
         )
       : null;
     const path = parentEntity
       ? parentEntity.path
-        ? parentEntity.path + "," + parentId
-        : parentId
+        ? parentEntity.path + "," + parent
+        : parent
       : "";
 
     let attrsObj = {};
@@ -78,7 +78,7 @@ class EntityDAO {
 
     const newEntity = {
       path,
-      parent: parentId ? ObjectId(parentId) : null,
+      parent: parent ? ObjectId(parent) : null,
       attrs: attrsObj,
     };
     const { insertedId } = await Entity.insertOne(newEntity);
@@ -100,23 +100,23 @@ class EntityDAO {
 
   // upsertOne
   static async upsertOne(props) {
-    const { parent: parentId, data, alias, link, record, queries } = props;
+    const { parent, data, alias, link, record, queries } = props;
 
-    const parentEntity = parentId
+    const parentEntity = parent
       ? await Entity.findOne(
-          { _id: ObjectId(parentId) },
+          { _id: ObjectId(parent) },
           { projection: { path: 1 } }
         )
       : null;
     const path = parentEntity
       ? parentEntity.path
-        ? parentEntity.path + "," + parentId
-        : parentId
+        ? parentEntity.path + "," + parent
+        : parent
       : "";
 
     let setObj = {
       path,
-      parent: parentId ? ObjectId(parent) : null,
+      parent: parent ? ObjectId(parent) : null,
     };
 
     for (const attr in data) {
@@ -147,7 +147,7 @@ class EntityDAO {
       queryObj[`attrs.${key}.value`] = queries[key];
     }
     const filter = {
-      ...(parentId && { parent: ObjectId(parentId) }),
+      ...(parent && { parent: ObjectId(parent) }),
       ...queryObj,
     };
     const update = { $set: setObj };
