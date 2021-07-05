@@ -97,7 +97,7 @@ exports.request = async (req, res) => {
           result[device_id][channel.channel_id] = ok;
         }
       } catch (error) {
-        console.log(error.message);
+        console.log(error);
         for (const channel of device_channels) {
           result[device_id][channel.channel_id] = 0;
         }

@@ -91,7 +91,7 @@ class EntityController {
       });
       return res.json({ data: result });
     } catch (error) {
-      console.log(error.message);
+      console.log(error);
       return res.sendStatus(500);
     }
   }
