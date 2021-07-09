@@ -45,18 +45,56 @@ class recordsDAO {
   }
 
   static async get(props) {
-    const {
-      entity,
-      attr,
-      year,
-      month,
-      day,
-      hour,
-      minute,
-      half,
-      quarter,
-      filter,
-    } = props;
+    const { entity, attr, from, to, interval, filter } = props;
+
+    // month level
+    if (typeof year !== "string") throw new Error("year must be string");
+
+    const matchDate = Array.isArray(month)
+      ? {
+          $gte: new Date(year, month[0] - 1),
+          $lt: new Date(year, month[1]),
+        }
+      : {
+          $gte: new Date(year, month - 1),
+          $lt: new Date(year, month),
+        };
+
+    const manyMonths = await Record.aggregate([
+      {
+        $match: {
+          entity: ObjectId(entity),
+          attr,
+          date: matchDate,
+        },
+      },
+      { $unwind: "$samples" },
+      { $sort: { "samples.t": 1 } },
+      {
+        $project: {
+          _id: 0,
+          sample: "$samples",
+          month: { $month: "$samples.t" },
+        },
+      },
+      {
+        $group: {
+          _id: "$month",
+          ...(filter === "first" && { data: { $first: "$sample" } }),
+          ...(filter === "last" && { data: { $last: "$sample" } }),
+          ...(filter === "avg" && { data: { $avg: "$sample.v" } }),
+          ...(filter === "count" && { data: { $sum: 1 } }),
+          ...((!filter || filter === "all") && { data: { $push: "$sample" } }),
+        },
+      },
+    ]).toArray();
+    let result = {};
+    for (const oneMonth of manyMonths) {
+      result[oneMonth._id] = oneMonth.data;
+    }
+    return result;
+
+    return;
 
     if (!entity || !attr || !year || !month)
       throw new Error("need entity, attr, year, month");
@@ -307,53 +345,6 @@ class recordsDAO {
       }
       return result;
     }
-
-    // month level
-    if (typeof year !== "string") throw new Error("year must be string");
-
-    const matchDate = Array.isArray(month)
-      ? {
-          $gte: new Date(year, month[0] - 1),
-          $lt: new Date(year, month[1]),
-        }
-      : {
-          $gte: new Date(year, month - 1),
-          $lt: new Date(year, month),
-        };
-
-    const manyMonths = await Record.aggregate([
-      {
-        $match: {
-          entity: ObjectId(entity),
-          attr,
-          date: matchDate,
-        },
-      },
-      { $unwind: "$samples" },
-      { $sort: { "samples.t": 1 } },
-      {
-        $project: {
-          _id: 0,
-          sample: "$samples",
-          month: { $month: "$samples.t" },
-        },
-      },
-      {
-        $group: {
-          _id: "$month",
-          ...(filter === "first" && { data: { $first: "$sample" } }),
-          ...(filter === "last" && { data: { $last: "$sample" } }),
-          ...(filter === "avg" && { data: { $avg: "$sample.v" } }),
-          ...(filter === "count" && { data: { $sum: 1 } }),
-          ...((!filter || filter === "all") && { data: { $push: "$sample" } }),
-        },
-      },
-    ]).toArray();
-    let result = {};
-    for (const oneMonth of manyMonths) {
-      result[oneMonth._id] = oneMonth.data;
-    }
-    return result;
   }
 }
 module.exports = recordsDAO;
