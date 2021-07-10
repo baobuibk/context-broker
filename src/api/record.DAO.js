@@ -47,8 +47,29 @@ class recordsDAO {
   static async get(props) {
     const { entity, attr, from, to, interval, filter } = props;
 
-    // month level
-    if (typeof year !== "string") throw new Error("year must be string");
+    const filterEnums = ["first", "last", "average", "all"];
+    if (!filterEnums.includes(filter)) throw new Error("filter error");
+
+    const intervalEnums = [
+      "1y",
+      "1m",
+      "1d",
+      "1h",
+      "30m",
+      "10m",
+      "5m",
+      "1m",
+      "30s",
+      "10s",
+      "5s",
+      "1s",
+    ];
+    if (!intervalEnums.includes(interval)) throw new Error("interval error");
+
+    // from = [2021, 7, 2, 1, 30, 59];
+    // to = [2021, 7, 2, 1, 30, 59];
+    const fromArray = Array.isArray(from) ? from : from.split(",");
+    const toArray = Array.isArray(to) ? to : to.split(",");
 
     const matchDate = Array.isArray(month)
       ? {

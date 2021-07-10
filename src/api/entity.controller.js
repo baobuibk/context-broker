@@ -73,20 +73,15 @@ class EntityController {
   }
 
   static async getRecords(req, res) {
-    const { id, attrs, year, month, day, hour, minute, half, quarter, filter } =
-      req.query;
+    const { id, attrs, from, to, interval, filter } = req.query;
     if (!id || !attrs || !year || !month) res.sendStatus(400);
     try {
       const result = await EntityDAO.getRecordsById({
         id,
         attrs,
-        year,
-        month,
-        day,
-        hour,
-        minute,
-        half,
-        quarter,
+        from,
+        to,
+        interval,
         filter,
       });
       return res.json({ data: result });

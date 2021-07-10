@@ -342,8 +342,7 @@ class EntityDAO {
 
   // Get records for entity with specific id
   static async getRecordsById(props) {
-    const { id, attrs, year, month, day, hour, minute, half, quarter, filter } =
-      props;
+    const { id, attrs, from, to, interval, filter } = props;
 
     if (!id || !attrs || !year || !month)
       throw new Error("need id, attrs, year, month");
