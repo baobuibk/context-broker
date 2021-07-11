@@ -266,25 +266,6 @@ const intervalObj = {
       ":00.000Z",
     ],
   },
-  "5m": {
-    $concat: [
-      {
-        $dateToString: { date: "$t", format: "%Y-%m-%dT%H:" },
-      },
-      {
-        $cond: [
-          { $eq: [{ $floor: { $divide: [{ $minute: "$t" }, 5] } }, 0] },
-          "00",
-          {
-            $toString: {
-              $multiply: [{ $floor: { $divide: [{ $minute: "$t" }, 5] } }, 5],
-            },
-          },
-        ],
-      },
-      ":00.000Z",
-    ],
-  },
   minute: {
     $dateToString: {
       date: "$t",
@@ -350,28 +331,6 @@ const intervalObj = {
           {
             $toString: {
               $multiply: [{ $floor: { $divide: [{ $second: "$t" }, 10] } }, 10],
-            },
-          },
-        ],
-      },
-      ".000Z",
-    ],
-  },
-  "5s": {
-    $concat: [
-      {
-        $dateToString: {
-          date: "$t",
-          format: "%Y-%m-%dT%H:%M:",
-        },
-      },
-      {
-        $cond: [
-          { $eq: [{ $floor: { $divide: [{ $second: "$t" }, 5] } }, 0] },
-          "00",
-          {
-            $toString: {
-              $multiply: [{ $floor: { $divide: [{ $second: "$t" }, 5] } }, 5],
             },
           },
         ],
