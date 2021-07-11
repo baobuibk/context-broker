@@ -1,4 +1,5 @@
 const EntityDAO = require("./entity.DAO");
+const { ObjectId } = require("mongodb");
 
 class EntityController {
   // add
@@ -73,16 +74,71 @@ class EntityController {
   }
 
   static async getRecords(req, res) {
-    const { id, attrs, from, to, interval, filter } = req.query;
-    if (!id || !attrs || !year || !month) res.sendStatus(400);
+    const { id, attrs, date, from, to, interval, filter } = req.query;
+
+    if (!id) return res.status(400).send("id is undefined");
+    else if (!ObjectId.isValid(id)) return res.status(400).send("bad id");
+
+    if (!attrs) return res.status(400).send("attrs is undefined");
+    else {
+      var attrsArr = attrs.split(",");
+      if (attrsArr.some((e) => !e.length))
+        return res.status(400).send("bad attrs");
+    }
+
+    if (interval) {
+      const intervalEnums = [
+        "year",
+        "month",
+        "day",
+        "hour",
+        "30m",
+        "15m",
+        "minute",
+        "30s",
+        "15s",
+        "second",
+      ];
+      if (!intervalEnums.includes(interval))
+        return res.status(400).send("bad interval");
+    }
+
+    if (filter) {
+      var filterArr = filter.split(",");
+      const filterEnums = [
+        "all",
+        "avg",
+        "count",
+        "first",
+        "last",
+        "max",
+        "min",
+      ];
+      if (filterArr.some((e) => !filterEnums.includes(e)))
+        return res.status(400).send("bad filter");
+    }
+
+    // if (date)
+    //   if (isNaN(new Date(date))) return res.status(400).send("bad date");
+
+    // if (from)
+    //   if (isNaN(new Date(from))) return res.status(400).send("bad from");
+
+    // if (to) if (isNaN(new Date(to))) return res.status(400).send("bad to");
+
+    // if (from && to)
+    //   if (!(new Date(from) <= new Date(to)))
+    //     return res.status(400).send("from is bigger than to");
+
     try {
       const result = await EntityDAO.getRecordsById({
         id,
-        attrs,
+        attrs: attrsArr,
+        date,
         from,
         to,
         interval,
-        filter,
+        filter: filterArr,
       });
       return res.json({ data: result });
     } catch (error) {

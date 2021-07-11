@@ -342,31 +342,24 @@ class EntityDAO {
 
   // Get records for entity with specific id
   static async getRecordsById(props) {
-    const { id, attrs, from, to, interval, filter } = props;
-
-    if (!id || !attrs || !year || !month)
-      throw new Error("need id, attrs, year, month");
+    const { id, attrs: attrsArr, date, from, to, interval, filter } = props;
 
     const query = { _id: ObjectId(id) };
     const options = { projection: { attrs: 1, _id: 0 } };
     const entity = await Entity.findOne(query, options);
     if (!entity) throw new Error("entity not found");
 
-    let result = { id };
+    let result = {};
 
-    const attrsArr = Array.isArray(attrs) ? attrs : attrs.split(",");
     for (const attr of attrsArr) {
       result[attr] = await solveRecords({
         entity: id,
         attrsObj: entity.attrs,
         attrName: attr,
-        year,
-        month,
-        day,
-        hour,
-        minute,
-        half,
-        quarter,
+        date,
+        from,
+        to,
+        interval,
         filter,
       });
     }
@@ -398,19 +391,8 @@ async function solveAttr(attrsObj, key) {
 }
 
 async function solveRecords(props) {
-  const {
-    entity,
-    attrsObj,
-    attrName,
-    year,
-    month,
-    day,
-    hour,
-    minute,
-    half,
-    quarter,
-    filter,
-  } = props;
+  const { entity, attrsObj, attrName, date, from, to, interval, filter } =
+    props;
 
   const attr = attrsObj[attrName];
   if (attr) {
@@ -420,13 +402,10 @@ async function solveRecords(props) {
         return RecordDAO.get({
           entity,
           attr: attrName,
-          year,
-          month,
-          day,
-          hour,
-          minute,
-          half,
-          quarter,
+          date,
+          from,
+          to,
+          interval,
           filter,
         });
       case "link":
@@ -435,13 +414,10 @@ async function solveRecords(props) {
         const result = await EntityDAO.getRecordsById({
           id: targetEntity,
           attrs: targetAttr,
-          year,
-          month,
-          day,
-          hour,
-          minute,
-          half,
-          quarter,
+          date,
+          from,
+          to,
+          interval,
           filter,
         });
         if (result && result[targetAttr]) return result[targetAttr];
@@ -451,13 +427,10 @@ async function solveRecords(props) {
           entity,
           attrsObj,
           attrName: attr.target,
-          year,
-          month,
-          day,
-          hour,
-          minute,
-          half,
-          quarter,
+          date,
+          from,
+          to,
+          interval,
           filter,
         });
       default:

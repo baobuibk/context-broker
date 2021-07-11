@@ -26,8 +26,8 @@ class recordsDAO {
 
   // Add one sample
   static async addOneSample(entity, attr, sample) {
-    const time = new Date(sample.t).getTime();
-    const roundToHour = new Date(time - (time % 3600000));
+    const millis = new Date(sample.t).getTime();
+    const roundToHour = new Date(millis - (millis % 3600000));
 
     const filter = {
       entity: ObjectId(entity),
@@ -45,327 +45,196 @@ class recordsDAO {
   }
 
   static async get(props) {
-    const { entity, attr, from, to, interval, filter } = props;
+    let { entity, attr, date, from, to, interval, filter } = props;
 
-    const filterEnums = ["first", "last", "average", "all"];
-    if (!filterEnums.includes(filter)) throw new Error("filter error");
+    // date
+    if (date) {
+      var matchDate =
+        time.length === 1
+          ? {
+              $gte: new Date(time[0], 0),
+              $lt: new Date(time[0], 12),
+            }
+          : time.length === 2
+          ? {
+              $gte: new Date(time[0], time[1] - 1),
+              $lt: new Date(time[0], time[1]),
+            }
+          : time.length === 3
+          ? {
+              $gte: new Date(time[0], time[1] - 1, time[2]),
+              $lt: new Date(time[0], time[1] - 1, time[2] + 1),
+            }
+          : time.length === 4
+          ? {
+              $gte: new Date(time[0], time[1] - 1, time[2], time[3]),
+              $lt: new Date(time[0], time[1] - 1, time[2], time[3] + 1),
+            }
+          : new Date();
 
-    const intervalEnums = [
-      "1y",
-      "1m",
-      "1d",
-      "1h",
-      "30m",
-      "10m",
-      "5m",
-      "1m",
-      "30s",
-      "10s",
-      "5s",
-      "1s",
-    ];
-    if (!intervalEnums.includes(interval)) throw new Error("interval error");
+      // from and to
+    } else if (from && to) {
+      const lowBound =
+        time.length === 1
+          ? new Date(time[0], 0)
+          : time.length === 2
+          ? new Date(time[0], time[1] - 1)
+          : time.length === 3
+          ? new Date(time[0], time[1] - 1, time[2])
+          : time.length === 4
+          ? new Date(time[0], time[1] - 1, time[2], time[3])
+          : new Date();
 
-    // from = [2021, 7, 2, 1, 30, 59];
-    // to = [2021, 7, 2, 1, 30, 59];
-    const fromArray = Array.isArray(from) ? from : from.split(",");
-    const toArray = Array.isArray(to) ? to : to.split(",");
+      const highBound =
+        time.length === 1
+          ? new Date(time[0], 12)
+          : time.length === 2
+          ? new Date(time[0], time[1])
+          : time.length === 3
+          ? new Date(time[0], time[1] - 1, time[2] + 1)
+          : time.length === 4
+          ? new Date(time[0], time[1] - 1, time[2], time[3] + 1)
+          : new Date();
 
-    const matchDate = Array.isArray(month)
-      ? {
-          $gte: new Date(year, month[0] - 1),
-          $lt: new Date(year, month[1]),
-        }
-      : {
-          $gte: new Date(year, month - 1),
-          $lt: new Date(year, month),
-        };
+      var matchDate = {
+        $gte: lowBound,
+        $lt: highBound,
+      };
 
-    const manyMonths = await Record.aggregate([
+      // from and no to
+    } else if (from && !to) {
+      return;
+    }
+
+    // no from and to
+    if (!from && to) {
+      return;
+    }
+
+    // no from and no to
+    if (!from && !to) {
+      return;
+    }
+
+    const groupObj = {};
+    if (filter)
+      for (const e of filter) {
+        groupObj[e] = filterObj[e];
+      }
+    else {
+      groupObj["avg"] = filterObj["avg"];
+      groupObj["count"] = filterObj["count"];
+    }
+
+    const records = await Record.aggregate([
+      { $match: { entity: ObjectId(entity), attr, date: matchDate } },
+      { $unwind: "$samples" },
+      { $project: { _id: 0, sample: "$samples", t: "$samples.t" } },
+      ...((filter === "first" || filter === "last") && {
+        $sort: { $t: 1 },
+      }),
       {
-        $match: {
-          entity: ObjectId(entity),
-          attr,
-          date: matchDate,
+        $project: {
+          sample: 1,
+          time: interval ? intervalObj[interval] : intervalObj["hour"],
         },
       },
-      { $unwind: "$samples" },
-      { $sort: { "samples.t": 1 } },
+      {
+        $group: { _id: "$time", ...groupObj },
+      },
       {
         $project: {
           _id: 0,
-          sample: "$samples",
-          month: { $month: "$samples.t" },
-        },
-      },
-      {
-        $group: {
-          _id: "$month",
-          ...(filter === "first" && { data: { $first: "$sample" } }),
-          ...(filter === "last" && { data: { $last: "$sample" } }),
-          ...(filter === "avg" && { data: { $avg: "$sample.v" } }),
-          ...(filter === "count" && { data: { $sum: 1 } }),
-          ...((!filter || filter === "all") && { data: { $push: "$sample" } }),
+          time: "$_id",
+          data: 1,
         },
       },
     ]).toArray();
-    let result = {};
-    for (const oneMonth of manyMonths) {
-      result[oneMonth._id] = oneMonth.data;
-    }
-    return result;
-
-    return;
-
-    if (!entity || !attr || !year || !month)
-      throw new Error("need entity, attr, year, month");
-
-    // quarter level
-    if (quarter) {
-      if (!hour || !day || !month || !year)
-        throw new Error("need hour, date, month, year for quarter");
-      if (
-        typeof hour !== "string" ||
-        typeof day !== "string" ||
-        typeof month !== "string" ||
-        typeof year !== "string"
-      )
-        throw new Error("hour,date, month, year must be string");
-
-      const matchDate = new Date(year, month - 1, day, hour);
-
-      const manyQuarters = await Record.aggregate([
-        { $match: { entity: ObjectId(entity), attr, date: matchDate } },
-        { $unwind: "$samples" },
-        { $sort: { "samples.t": 1 } },
-        {
-          $project: {
-            _id: 0,
-            sample: "$samples",
-            quarter: {
-              $sum: [
-                { $multiply: [{ $minute: "$samples.t" }, 4] },
-                { $floor: { $divide: [{ $second: "$samples.t" }, 15] } },
-              ],
-            },
-          },
-        },
-        {
-          $group: {
-            _id: "$quarter",
-            ...(filter === "first" && { data: { $first: "$sample" } }),
-            ...(filter === "last" && { data: { $last: "$sample" } }),
-            ...(filter === "avg" && { data: { $avg: "$sample.v" } }),
-            ...(filter === "count" && { data: { $sum: 1 } }),
-            ...((!filter || filter === "all") && {
-              data: { $push: "$sample" },
-            }),
-          },
-        },
-      ]).toArray();
-      let result = {};
-      for (const oneQuarter of manyQuarters) {
-        result[oneQuarter._id] = oneQuarter.data;
-      }
-      return result;
-    }
-
-    // half level
-    if (half) {
-      if (!hour || !day || !month || !year)
-        throw new Error("need hour, date, month, year for half");
-      if (
-        typeof hour !== "string" ||
-        typeof day !== "string" ||
-        typeof month !== "string" ||
-        typeof year !== "string"
-      )
-        throw new Error("hour,date, month, year must be string");
-
-      const matchDate = new Date(year, month - 1, day, hour);
-
-      const manyHalfs = await Record.aggregate([
-        { $match: { entity: ObjectId(entity), attr, date: matchDate } },
-        { $unwind: "$samples" },
-        { $sort: { "samples.t": 1 } },
-        {
-          $project: {
-            _id: 0,
-            sample: "$samples",
-            half: {
-              $sum: [
-                { $multiply: [{ $minute: "$samples.t" }, 2] },
-                { $floor: { $divide: [{ $second: "$samples.t" }, 30] } },
-              ],
-            },
-          },
-        },
-        {
-          $group: {
-            _id: "$half",
-            ...(filter === "first" && { data: { $first: "$sample" } }),
-            ...(filter === "last" && { data: { $last: "$sample" } }),
-            ...(filter === "avg" && { data: { $avg: "$sample.v" } }),
-            ...(filter === "count" && { data: { $sum: 1 } }),
-            ...((!filter || filter === "all") && {
-              data: { $push: "$sample" },
-            }),
-          },
-        },
-      ]).toArray();
-      let result = {};
-      for (const oneHalf of manyHalfs) {
-        result[oneHalf._id] = oneHalf.data;
-      }
-      return result;
-    }
-
-    // minute level
-    if (minute) {
-      if (!hour || !day || !month || !year)
-        throw new Error("need hour, date, month, year for minute");
-      if (
-        typeof hour !== "string" ||
-        typeof day !== "string" ||
-        typeof month !== "string" ||
-        typeof year !== "string"
-      )
-        throw new Error("hour,date, month, year must be string");
-
-      const matchDate = new Date(year, month - 1, day, hour);
-
-      const manyMinutes = await Record.aggregate([
-        { $match: { entity: ObjectId(entity), attr, date: matchDate } },
-        { $unwind: "$samples" },
-        { $sort: { "samples.t": 1 } },
-        {
-          $project: {
-            _id: 0,
-            sample: "$samples",
-            minute: { $minute: "$samples.t" },
-          },
-        },
-        {
-          $group: {
-            _id: "$minute",
-            ...(filter === "first" && { data: { $first: "$sample" } }),
-            ...(filter === "last" && { data: { $last: "$sample" } }),
-            ...(filter === "avg" && { data: { $avg: "$sample.v" } }),
-            ...(filter === "count" && { data: { $sum: 1 } }),
-            ...((!filter || filter === "all") && {
-              data: { $push: "$sample" },
-            }),
-          },
-        },
-      ]).toArray();
-      let result = {};
-      for (const oneMinute of manyMinutes) {
-        result[oneMinute._id] = oneMinute.data;
-      }
-      return result;
-    }
-
-    // hour level
-    if (hour) {
-      if (!day || !month || !year)
-        throw new Error("need date, month, year for hour");
-      if (
-        typeof day !== "string" ||
-        typeof month !== "string" ||
-        typeof year !== "string"
-      )
-        throw new Error("date, month, year must be string");
-
-      const matchDate = Array.isArray(hour)
-        ? {
-            $gte: new Date(year, month - 1, day, hour[0]),
-            $lte: new Date(year, month - 1, day, hour[1]),
-          }
-        : new Date(year, month - 1, day, hour);
-
-      const manyHours = await Record.aggregate([
-        { $match: { entity: ObjectId(entity), attr, date: matchDate } },
-        { $unwind: "$samples" },
-        { $sort: { "samples.t": 1 } },
-        {
-          $project: {
-            _id: 0,
-            sample: "$samples",
-            hour: { $hour: "$samples.t" },
-          },
-        },
-        {
-          $group: {
-            _id: "$hour",
-            ...(filter === "first" && { data: { $first: "$sample" } }),
-            ...(filter === "last" && { data: { $last: "$sample" } }),
-            ...(filter === "avg" && { data: { $avg: "$sample.v" } }),
-            ...(filter === "count" && { data: { $sum: 1 } }),
-            ...((!filter || filter === "all") && {
-              data: { $push: "$sample" },
-            }),
-          },
-        },
-      ]).toArray();
-      let result = {};
-      for (const oneHour of manyHours) {
-        result[oneHour._id] = oneHour.data;
-      }
-      return result;
-    }
-
-    // day level
-    if (day) {
-      if (!month || !year) throw new Error("need month, year for day");
-      if (typeof month !== "string" || typeof year !== "string")
-        throw new Error("month, year must be string");
-
-      const matchDate = Array.isArray(day)
-        ? {
-            $gte: new Date(year, month - 1, day[0]),
-            $lt: new Date(year, month - 1, parseInt(day[1]) + 1),
-          }
-        : {
-            $gte: new Date(year, month - 1, day),
-            $lt: new Date(year, month - 1, parseInt(day) + 1),
-          };
-
-      const manyDays = await Record.aggregate([
-        {
-          $match: {
-            entity: ObjectId(entity),
-            attr,
-            date: matchDate,
-          },
-        },
-        { $unwind: "$samples" },
-        { $sort: { "samples.t": 1 } },
-        {
-          $project: {
-            _id: 0,
-            sample: "$samples",
-            day: { $dayOfMonth: "$samples.t" },
-          },
-        },
-        {
-          $group: {
-            _id: "$day",
-            ...(filter === "first" && { data: { $first: "$sample" } }),
-            ...(filter === "last" && { data: { $last: "$sample" } }),
-            ...(filter === "avg" && { data: { $avg: "$sample.v" } }),
-            ...(filter === "count" && { data: { $sum: 1 } }),
-            ...((!filter || filter === "all") && {
-              data: { $push: "$sample" },
-            }),
-          },
-        },
-      ]).toArray();
-      let result = {};
-      for (const oneDay of manyDays) {
-        result[oneDay._id] = oneDay.data;
-      }
-      return result;
-    }
+    return records;
   }
 }
 module.exports = recordsDAO;
+
+const filterObj = {
+  all: { $push: "$sample" },
+  avg: { $avg: "$sample.v" },
+  count: { $sum: 1 },
+  first: { $first: "$sample" },
+  last: { $last: "$sample" },
+  max: { $max: "$sample" },
+  min: { $min: "$sample" },
+};
+
+const intervalObj = {
+  date: { $dateToString: { date: "$t" } },
+  year: { $dateToString: { date: "$t", format: "%Y" } },
+  month: { $dateToString: { date: "$t", format: "%Y-%m" } },
+  day: { $dateToString: { date: "$t", format: "%Y-%m-%d" } },
+  hour: { $dateToString: { date: "$t", format: "%Y-%m-%dT%H" } },
+  "30m": {
+    $concat: [
+      { $dateToString: { date: "$t", format: "%Y-%m-%dT%H:" } },
+      {
+        $cond: [
+          { $eq: [{ $floor: { $divide: [{ $minute: "$t" }, 30] } }, 0] },
+          "00",
+          {
+            $toString: {
+              $multiply: [{ $floor: { $divide: [{ $minute: "$t" }, 30] } }, 30],
+            },
+          },
+        ],
+      },
+    ],
+  },
+  "15m": {
+    $concat: [
+      { $dateToString: { date: "$t", format: "%Y-%m-%dT%H:" } },
+      {
+        $cond: [
+          { $eq: [{ $floor: { $divide: [{ $minute: "$t" }, 15] } }, 0] },
+          "00",
+          {
+            $toString: {
+              $multiply: [{ $floor: { $divide: [{ $minute: "$t" }, 15] } }, 15],
+            },
+          },
+        ],
+      },
+    ],
+  },
+  minute: { $dateToString: { date: "$t", format: "%Y-%m-%dT%H:%M" } },
+  "30s": {
+    $concat: [
+      { $dateToString: { date: "$t", format: "%Y-%m-%dT%H:%M:" } },
+      {
+        $cond: [
+          { $eq: [{ $floor: { $divide: [{ $second: "$t" }, 30] } }, 0] },
+          "00",
+          {
+            $toString: {
+              $multiply: [{ $floor: { $divide: [{ $second: "$t" }, 30] } }, 30],
+            },
+          },
+        ],
+      },
+    ],
+  },
+  "15s": {
+    $concat: [
+      { $dateToString: { date: "$t", format: "%Y-%m-%dT%H:%M:" } },
+      {
+        $cond: [
+          { $eq: [{ $floor: { $divide: [{ $second: "$t" }, 15] } }, 0] },
+          "00",
+          {
+            $toString: {
+              $multiply: [{ $floor: { $divide: [{ $second: "$t" }, 15] } }, 15],
+            },
+          },
+        ],
+      },
+    ],
+  },
+  second: { $dateToString: { date: "$t", format: "%Y-%m-%dT%H:%M:%S" } },
+};
