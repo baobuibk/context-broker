@@ -164,7 +164,7 @@ class EntityController {
       return res.json({ data: result });
     } catch (error) {
       console.log(error);
-      return res.sendStatus(500);
+      return res.status(500).send(error.message);
     }
   }
 }

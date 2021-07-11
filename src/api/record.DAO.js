@@ -105,9 +105,11 @@ class recordsDAO {
 
       // no from and no to
     } else if (!from && !to) {
-      const now = new Date().getTime();
+      const now = new Date();
 
-      matchDate = { $gte: new Date(now - (now % 86400000)) };
+      matchDate = {
+        $gte: new Date(now.getFullYear(), now.getMonth(), now.getDate()),
+      };
 
       // should never get here
     } else throw new Error("somethings wrong with date, from, to");
@@ -162,14 +164,17 @@ const filterObj = {
 };
 // 2021-07-01T00:15:00.000Z
 const intervalObj = {
-  date: { $concat: [{ $dateToString: { date: "$t" } }] },
-  year: { $dateToString: { date: "$t", format: "%Y" } },
-  month: { $dateToString: { date: "$t", format: "%Y-%m" } },
-  day: { $dateToString: { date: "$t", format: "%Y-%m-%d" } },
-  hour: { $dateToString: { date: "$t", format: "%Y-%m-%dT%H" } },
+  year: { $dateToString: { date: "$t", format: "%Y", timezone: "+07" } },
+  month: { $dateToString: { date: "$t", format: "%Y,%m", timezone: "+07" } },
+  day: { $dateToString: { date: "$t", format: "%Y,%m,%d", timezone: "+07" } },
+  hour: {
+    $dateToString: { date: "$t", format: "%Y,%m,%d,%H", timezone: "+07" },
+  },
   "30m": {
     $concat: [
-      { $dateToString: { date: "$t", format: "%Y-%m-%dT%H:" } },
+      {
+        $dateToString: { date: "$t", format: "%Y,%m,%d,%H,", timezone: "+07" },
+      },
       {
         $cond: [
           { $eq: [{ $floor: { $divide: [{ $minute: "$t" }, 30] } }, 0] },
@@ -185,7 +190,9 @@ const intervalObj = {
   },
   "15m": {
     $concat: [
-      { $dateToString: { date: "$t", format: "%Y-%m-%dT%H:" } },
+      {
+        $dateToString: { date: "$t", format: "%Y,%m,%d,%H,", timezone: "+07" },
+      },
       {
         $cond: [
           { $eq: [{ $floor: { $divide: [{ $minute: "$t" }, 15] } }, 0] },
@@ -201,7 +208,9 @@ const intervalObj = {
   },
   "10m": {
     $concat: [
-      { $dateToString: { date: "$t", format: "%Y-%m-%dT%H:" } },
+      {
+        $dateToString: { date: "$t", format: "%Y,%m,%d,%H,", timezone: "+07" },
+      },
       {
         $cond: [
           { $eq: [{ $floor: { $divide: [{ $minute: "$t" }, 10] } }, 0] },
@@ -217,7 +226,9 @@ const intervalObj = {
   },
   "5m": {
     $concat: [
-      { $dateToString: { date: "$t", format: "%Y-%m-%dT%H:" } },
+      {
+        $dateToString: { date: "$t", format: "%Y,%m,%d,%H,", timezone: "+07" },
+      },
       {
         $cond: [
           { $eq: [{ $floor: { $divide: [{ $minute: "$t" }, 5] } }, 0] },
@@ -231,10 +242,18 @@ const intervalObj = {
       },
     ],
   },
-  minute: { $dateToString: { date: "$t", format: "%Y-%m-%dT%H:%M" } },
+  minute: {
+    $dateToString: { date: "$t", format: "%Y,%m,%d,%H,%M", timezone: "+07" },
+  },
   "30s": {
     $concat: [
-      { $dateToString: { date: "$t", format: "%Y-%m-%dT%H:%M:" } },
+      {
+        $dateToString: {
+          date: "$t",
+          format: "%Y,%m,%d,%H,%M,",
+          timezone: "+07",
+        },
+      },
       {
         $cond: [
           { $eq: [{ $floor: { $divide: [{ $second: "$t" }, 30] } }, 0] },
@@ -250,7 +269,13 @@ const intervalObj = {
   },
   "15s": {
     $concat: [
-      { $dateToString: { date: "$t", format: "%Y-%m-%dT%H:%M:" } },
+      {
+        $dateToString: {
+          date: "$t",
+          format: "%Y,%m,%d,%H,%M,",
+          timezone: "+07",
+        },
+      },
       {
         $cond: [
           { $eq: [{ $floor: { $divide: [{ $second: "$t" }, 15] } }, 0] },
@@ -266,7 +291,13 @@ const intervalObj = {
   },
   "10s": {
     $concat: [
-      { $dateToString: { date: "$t", format: "%Y-%m-%dT%H:%M:" } },
+      {
+        $dateToString: {
+          date: "$t",
+          format: "%Y,%m,%d,%H,%M,",
+          timezone: "+07",
+        },
+      },
       {
         $cond: [
           { $eq: [{ $floor: { $divide: [{ $second: "$t" }, 10] } }, 0] },
@@ -282,7 +313,13 @@ const intervalObj = {
   },
   "5s": {
     $concat: [
-      { $dateToString: { date: "$t", format: "%Y-%m-%dT%H:%M:" } },
+      {
+        $dateToString: {
+          date: "$t",
+          format: "%Y,%m,%d,%H,%M,",
+          timezone: "+07",
+        },
+      },
       {
         $cond: [
           { $eq: [{ $floor: { $divide: [{ $second: "$t" }, 5] } }, 0] },
@@ -296,5 +333,7 @@ const intervalObj = {
       },
     ],
   },
-  second: { $dateToString: { date: "$t", format: "%Y-%m-%dT%H:%M:%S" } },
+  second: {
+    $dateToString: { date: "$t", format: "%Y,%m,%d,%H,%M,%S", timezone: "+07" },
+  },
 };
