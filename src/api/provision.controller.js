@@ -45,7 +45,7 @@ exports.status = async (req, res) => {
 exports.request = async (req, res) => {
   const { data, entity } = req.body;
 
-  if (!entity) return res.status(400).send("need entity");
+  if (!entity) return res.status(400).send("entity is undefined");
 
   if (!sessions[entity]) return res.status(401).send("unavailable");
 
@@ -63,25 +63,19 @@ exports.request = async (req, res) => {
       let channelRecord = {};
       for (const channel of device_channels) {
         channelData[channel.channel_id] = null;
-        channelAlias[channel.channel_name] = channel.channel_id;
         channelRecord[channel.channel_id] = true;
+        channelAlias[channel.channel_name] = channel.channel_id;
       }
       const data = {
         kind: "Device",
-        name: device_name,
         device_id,
+        device_name,
         device_kind,
         device_channels,
         ...channelData,
-        lastTelemetry: null,
       };
-      const alias = {
-        device_name: "name",
-        ...channelAlias,
-      };
-      const record = {
-        ...channelRecord,
-      };
+      const alias = channelAlias;
+      const record = channelRecord;
 
       // For every device
       try {

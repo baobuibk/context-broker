@@ -92,7 +92,7 @@ class EntityDAO {
           ? "link"
           : attr.type === "alias"
           ? "alias"
-          : "unknown";
+          : "error";
     }
 
     return result;
@@ -195,7 +195,7 @@ class EntityDAO {
             ? "link"
             : attr.type === "alias"
             ? "alias"
-            : "unknown";
+            : "error";
       }
     result.id = id;
     return result;
@@ -236,7 +236,7 @@ class EntityDAO {
                 ? "link"
                 : attr.type === "alias"
                 ? "alias"
-                : null;
+                : "error";
           }
         result.id = entity._id;
         return result;
@@ -350,7 +350,6 @@ class EntityDAO {
     if (!entity) throw new Error("entity not found");
 
     let result = {};
-
     for (const attr of attrsArr) {
       result[attr] = await solveRecords({
         entity: id,
@@ -380,12 +379,11 @@ async function solveAttr(attrsObj, key) {
         const id = attr.target.entity;
         const attr1 = attr.target.attr;
         const result = await EntityDAO.getById(id, attr1);
-        if (result && result[attr1]) return result[attr1];
-        else return null;
+        return result[attr1];
       case "alias":
         return solveAttr(attrsObj, attr.target);
       default:
-        return null;
+        throw new Error("type is strange");
     }
   } else return null;
 }
@@ -413,15 +411,14 @@ async function solveRecords(props) {
         const targetAttr = attr.target.attr;
         const result = await EntityDAO.getRecordsById({
           id: targetEntity,
-          attrs: targetAttr,
+          attrs: [targetAttr],
           date,
           from,
           to,
           interval,
           filter,
         });
-        if (result && result[targetAttr]) return result[targetAttr];
-        else return null;
+        return result[targetAttr];
       case "alias":
         return solveRecords({
           entity,
@@ -434,7 +431,7 @@ async function solveRecords(props) {
           filter,
         });
       default:
-        return null;
+        throw new Error("type is strange");
     }
   } else return null;
 }

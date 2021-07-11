@@ -7,28 +7,7 @@ const entitySchema = {
     properties: {
       _id: { bsonType: "objectId" },
       path: { bsonType: "string" },
-      attrs: {
-        bsonType: "object",
-        required: ["kind", "name"],
-        properties: {
-          kind: {
-            bsonType: "object",
-            required: ["type", "value"],
-            properties: {
-              type: { bsonType: "string" },
-              value: { bsonType: "string" },
-            },
-          },
-          name: {
-            bsonType: "object",
-            required: ["type", "value"],
-            properties: {
-              type: { bsonType: "string" },
-              value: { bsonType: "string" },
-            },
-          },
-        },
-      },
+      attrs: { bsonType: "object" },
     },
   },
 };
