@@ -146,8 +146,6 @@ class recordsDAO {
       // should never get here
     } else throw new Error("somethings wrong with date, from, to");
 
-    console.log(matchDate);
-
     const groupObj = {};
     const projectObj = {};
     if (filter)
