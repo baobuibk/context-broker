@@ -118,25 +118,42 @@ class EntityController {
         return res.status(400).send("bad filter");
     }
 
-    // if (date)
-    //   if (isNaN(new Date(date))) return res.status(400).send("bad date");
+    if (date) {
+      if (from || to)
+        return res.status(400).send("from and/or to are redundant");
 
-    // if (from)
-    //   if (isNaN(new Date(from))) return res.status(400).send("bad from");
+      var dateArr = date.split(",").map((e) => parseInt(e));
+      if (!isValidTimeArray(dateArr)) return res.status(400).send("bad date");
+    }
 
-    // if (to) if (isNaN(new Date(to))) return res.status(400).send("bad to");
+    if (from) {
+      var fromArr = from.split(",").map((e) => parseInt(e));
+      var fromArrIsValid = isValidTimeArray(fromArr);
+      if (!fromArrIsValid) return res.status(400).send("bad from");
+    }
 
-    // if (from && to)
-    //   if (!(new Date(from) <= new Date(to)))
-    //     return res.status(400).send("from is bigger than to");
+    if (to) {
+      var toArr = to.split(",").map((e) => parseInt(e));
+      var toArrIsValid = isValidTimeArray(toArr);
+      if (!toArrIsValid) return res.status(400).send("bad to");
+    }
+
+    if (toArrIsValid && fromArrIsValid) {
+      let level = fromArr.length < toArr.length ? fromArr.length : toArr.length;
+      let wrong = false;
+      for (let index = 0; index < level && !wrong; index++) {
+        if (fromArr[index] > toArr[index]) wrong = true;
+      }
+      if (wrong) return res.status(400).send("from is bigger than to");
+    }
 
     try {
       const result = await EntityDAO.getRecordsById({
         id,
         attrs: attrsArr,
-        date,
-        from,
-        to,
+        date: dateArr,
+        from: fromArr,
+        to: toArr,
         interval,
         filter: filterArr,
       });
@@ -149,3 +166,31 @@ class EntityController {
 }
 
 module.exports = EntityController;
+
+function isValidTimeArray(timeArr) {
+  for (let index = 0; index < timeArr.length; index++) {
+    const e = timeArr[index];
+    if (isNaN(e)) return false;
+    switch (index) {
+      case 0: // year
+        if (e < 2020) return false;
+        break;
+      case 1: // month
+        if (e < 1 || e > 12) return false;
+        break;
+      case 2: // day
+        if (e < 1 || e > 31) return false;
+        break;
+      case 3: // hour
+        if (e < 0 || e > 23) return false;
+        break;
+      case 4: // minute
+      case 5: // second
+        if (e < 0 || e > 59) return false;
+        break;
+      default:
+        return false;
+    }
+  }
+  return true;
+}

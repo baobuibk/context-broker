@@ -45,98 +45,94 @@ class recordsDAO {
   }
 
   static async get(props) {
-    let { entity, attr, date, from, to, interval, filter } = props;
+    const { entity, attr, date, from, to, interval, filter } = props;
+
+    let matchDate;
 
     // date
     if (date) {
-      var matchDate =
-        time.length === 1
-          ? {
-              $gte: new Date(time[0], 0),
-              $lt: new Date(time[0], 12),
-            }
-          : time.length === 2
-          ? {
-              $gte: new Date(time[0], time[1] - 1),
-              $lt: new Date(time[0], time[1]),
-            }
-          : time.length === 3
-          ? {
-              $gte: new Date(time[0], time[1] - 1, time[2]),
-              $lt: new Date(time[0], time[1] - 1, time[2] + 1),
-            }
-          : time.length === 4
-          ? {
-              $gte: new Date(time[0], time[1] - 1, time[2], time[3]),
-              $lt: new Date(time[0], time[1] - 1, time[2], time[3] + 1),
-            }
-          : new Date();
+      const gte = [date[0], 0];
+      const lt = [date[0], 12];
+
+      if (date[1]) {
+        gte[1] = date[1] - 1;
+        lt[1] = date[1];
+      }
+
+      if (date[2]) {
+        gte[2] = date[2];
+        lt[2] = date[2] + 1;
+      }
+
+      if (date[3]) {
+        gte[3] = date[3];
+        lt[3] = date[3] + 1;
+      }
+
+      matchDate = { $gte: new Date(...gte), $lt: new Date(...lt) };
 
       // from and to
     } else if (from && to) {
-      const lowBound =
-        time.length === 1
-          ? new Date(time[0], 0)
-          : time.length === 2
-          ? new Date(time[0], time[1] - 1)
-          : time.length === 3
-          ? new Date(time[0], time[1] - 1, time[2])
-          : time.length === 4
-          ? new Date(time[0], time[1] - 1, time[2], time[3])
-          : new Date();
+      const gte = [from[0], 0];
+      if (from[1]) gte[1] = from[1] - 1;
+      if (from[2]) gte[2] = from[2];
+      if (from[3]) gte[3] = from[3];
 
-      const highBound =
-        time.length === 1
-          ? new Date(time[0], 12)
-          : time.length === 2
-          ? new Date(time[0], time[1])
-          : time.length === 3
-          ? new Date(time[0], time[1] - 1, time[2] + 1)
-          : time.length === 4
-          ? new Date(time[0], time[1] - 1, time[2], time[3] + 1)
-          : new Date();
+      const lt = [to[0], 12];
+      if (to[1]) lt[1] = to[1];
+      if (to[2]) lt[2] = to[2] + 1;
+      if (to[3]) lt[3] = to[3] + 1;
 
-      var matchDate = {
-        $gte: lowBound,
-        $lt: highBound,
-      };
+      matchDate = { $gte: new Date(...gte), $lt: new Date(...lt) };
 
       // from and no to
     } else if (from && !to) {
-      return;
-    }
+      const gte = [from[0], 0];
+      if (from[1]) gte[1] = from[1] - 1;
+      if (from[2]) gte[2] = from[2];
+      if (from[3]) gte[3] = from[3];
 
-    // no from and to
-    if (!from && to) {
-      return;
-    }
+      matchDate = { $gte: new Date(...gte) };
 
-    // no from and no to
-    if (!from && !to) {
-      return;
-    }
+      // no from and to
+    } else if (!from && to) {
+      const lt = [to[0], 12];
+      if (to[1]) lt[1] = to[1];
+      if (to[2]) lt[2] = to[2] + 1;
+      if (to[3]) lt[3] = to[3] + 1;
+
+      matchDate = { $lt: new Date(...lt) };
+
+      // no from and no to
+    } else if (!from && !to) {
+      const now = new Date().getTime();
+
+      matchDate = { $gte: new Date(now - (now % 86400000)) };
+
+      // should never get here
+    } else throw new Error("somethings wrong with date, from, to");
 
     const groupObj = {};
+    const projectObj = {};
     if (filter)
       for (const e of filter) {
         groupObj[e] = filterObj[e];
+        projectObj[e] = 1;
       }
     else {
-      groupObj["avg"] = filterObj["avg"];
       groupObj["count"] = filterObj["count"];
+      projectObj["count"] = 1;
     }
 
     const records = await Record.aggregate([
       { $match: { entity: ObjectId(entity), attr, date: matchDate } },
       { $unwind: "$samples" },
       { $project: { _id: 0, sample: "$samples", t: "$samples.t" } },
-      ...((filter === "first" || filter === "last") && {
-        $sort: { $t: 1 },
-      }),
+      { $sort: { t: 1 } },
       {
         $project: {
           sample: 1,
-          time: interval ? intervalObj[interval] : intervalObj["hour"],
+          time: interval ? intervalObj[interval] : intervalObj["day"],
         },
       },
       {
@@ -146,7 +142,7 @@ class recordsDAO {
         $project: {
           _id: 0,
           time: "$_id",
-          data: 1,
+          ...projectObj,
         },
       },
     ]).toArray();
@@ -164,9 +160,9 @@ const filterObj = {
   max: { $max: "$sample" },
   min: { $min: "$sample" },
 };
-
+// 2021-07-01T00:15:00.000Z
 const intervalObj = {
-  date: { $dateToString: { date: "$t" } },
+  date: { $concat: [{ $dateToString: { date: "$t" } }] },
   year: { $dateToString: { date: "$t", format: "%Y" } },
   month: { $dateToString: { date: "$t", format: "%Y-%m" } },
   day: { $dateToString: { date: "$t", format: "%Y-%m-%d" } },
