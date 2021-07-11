@@ -94,9 +94,13 @@ class EntityController {
         "hour",
         "30m",
         "15m",
+        "10m",
+        "5m",
         "minute",
         "30s",
         "15s",
+        "10s",
+        "5s",
         "second",
       ];
       if (!intervalEnums.includes(interval))

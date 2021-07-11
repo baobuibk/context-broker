@@ -199,6 +199,38 @@ const intervalObj = {
       },
     ],
   },
+  "10m": {
+    $concat: [
+      { $dateToString: { date: "$t", format: "%Y-%m-%dT%H:" } },
+      {
+        $cond: [
+          { $eq: [{ $floor: { $divide: [{ $minute: "$t" }, 10] } }, 0] },
+          "00",
+          {
+            $toString: {
+              $multiply: [{ $floor: { $divide: [{ $minute: "$t" }, 10] } }, 10],
+            },
+          },
+        ],
+      },
+    ],
+  },
+  "5m": {
+    $concat: [
+      { $dateToString: { date: "$t", format: "%Y-%m-%dT%H:" } },
+      {
+        $cond: [
+          { $eq: [{ $floor: { $divide: [{ $minute: "$t" }, 5] } }, 0] },
+          "00",
+          {
+            $toString: {
+              $multiply: [{ $floor: { $divide: [{ $minute: "$t" }, 5] } }, 5],
+            },
+          },
+        ],
+      },
+    ],
+  },
   minute: { $dateToString: { date: "$t", format: "%Y-%m-%dT%H:%M" } },
   "30s": {
     $concat: [
@@ -226,6 +258,38 @@ const intervalObj = {
           {
             $toString: {
               $multiply: [{ $floor: { $divide: [{ $second: "$t" }, 15] } }, 15],
+            },
+          },
+        ],
+      },
+    ],
+  },
+  "10s": {
+    $concat: [
+      { $dateToString: { date: "$t", format: "%Y-%m-%dT%H:%M:" } },
+      {
+        $cond: [
+          { $eq: [{ $floor: { $divide: [{ $second: "$t" }, 10] } }, 0] },
+          "00",
+          {
+            $toString: {
+              $multiply: [{ $floor: { $divide: [{ $second: "$t" }, 10] } }, 10],
+            },
+          },
+        ],
+      },
+    ],
+  },
+  "5s": {
+    $concat: [
+      { $dateToString: { date: "$t", format: "%Y-%m-%dT%H:%M:" } },
+      {
+        $cond: [
+          { $eq: [{ $floor: { $divide: [{ $second: "$t" }, 5] } }, 0] },
+          "00",
+          {
+            $toString: {
+              $multiply: [{ $floor: { $divide: [{ $second: "$t" }, 5] } }, 5],
             },
           },
         ],
