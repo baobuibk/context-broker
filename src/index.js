@@ -1,32 +1,21 @@
-const { MongoClient } = require("mongodb");
-
-const EntityDAO = require("./api/entity.DAO");
-const RecordDAO = require("./api/record.DAO");
-
-const DB_URI = process.env.DB_URI;
+const DB_URL = process.env.DB_URL;
 const DB_NAME = process.env.DB_NAME;
+const MongoDB = require("./database");
 
-MongoClient.connect(DB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-  .then(async (client) => {
-    console.log("connected to mongodb");
+const PORT = process.env.PORT || 3000;
+const expressServer = require("./server");
 
-    const db = client.db(DB_NAME);
-    await EntityDAO.addSchema(db);
-    EntityDAO.inject(db);
-    await RecordDAO.addSchema(db);
-    RecordDAO.inject(db);
-  })
-  .then(() => {
-    const port = process.env.PORT || 3000;
-    const app = require("./server");
-    app.listen(port, () => {
-      console.log(`server is listening on port ${port}`);
-    });
-  })
-  .catch((error) => {
-    console.log(error.message);
-    process.exit(1);
+async function main() {
+  await MongoDB.connect(DB_URL);
+  await MongoDB.init(DB_NAME);
+
+  expressServer.listen(PORT, () => {
+    console.log("server is listening on port", PORT);
   });
+}
+
+main().catch(async (error) => {
+  console.log(error);
+  await MongoDB.close();
+  process.exit(1);
+});

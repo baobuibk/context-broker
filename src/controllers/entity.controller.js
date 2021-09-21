@@ -1,5 +1,5 @@
-const EntityDAO = require("./entity.DAO");
 const { ObjectId } = require("mongodb");
+const EntityDAO = require("../DAOs/entity.DAO");
 
 class EntityController {
   // add
@@ -36,7 +36,7 @@ class EntityController {
 
   // update
   static async update(req, res) {
-    const { id, data, alias, link, record } = req.body;
+    const { id, data, alias, link, record, expression } = req.body;
     try {
       if (id) {
         const result = await EntityDAO.updateOne({
@@ -45,6 +45,7 @@ class EntityController {
           alias,
           link,
           record,
+          expression,
         });
         return res.json({ data: { ok: result.ok } });
       } else return res.sendStatus(400);

@@ -1,4 +1,4 @@
-const entitySchema = {
+module.exports = {
   $jsonSchema: {
     bsonType: "object",
 
@@ -11,8 +11,6 @@ const entitySchema = {
     },
   },
 };
-
-module.exports = entitySchema;
 
 // patternProperties: {
 //   "^s_": { bsonType: "string" },

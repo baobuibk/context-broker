@@ -93,5 +93,49 @@
         }
       }
     }
-  }
+  },
+  "websocketFormat": [
+    {
+      "cmdId": 1,
+      "data": null,
+      "update": [
+        {
+          "entityId": {
+            "entityType": "DEVICE",
+            "id": "a635e320-fcbd-11eb-8d1e-6b0bbeca40ba"
+          },
+          "latest": {
+            "TIME_SERIES": {
+              "temperature": { "ts": 1628920632683, "value": "30" }
+            }
+          },
+          "timeseries": null
+        }
+      ],
+      "errorCode": 0,
+      "errorMsg": null,
+      "allowedEntities": 10000,
+      "cmdUpdateType": "ENTITY_DATA"
+    },
+    {
+      "cmdId": 2,
+      "data": null,
+      "update": [
+        {
+          "entityId": {
+            "entityType": "DEVICE",
+            "id": "a635e320-fcbd-11eb-8d1e-6b0bbeca40ba"
+          },
+          "latest": null,
+          "timeseries": {
+            "temperature": [{ "ts": 1628920632683, "value": "30" }]
+          }
+        }
+      ],
+      "errorCode": 0,
+      "errorMsg": null,
+      "allowedEntities": 10000,
+      "cmdUpdateType": "ENTITY_DATA"
+    }
+  ]
 }

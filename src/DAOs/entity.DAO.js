@@ -1,27 +1,21 @@
-const ObjectId = require("mongodb").ObjectId;
-
-const RecordDAO = require("./record.DAO");
+const { ObjectId } = require("mongodb");
+const RecordDAO = require("../DAOs/record.DAO");
+const RuleDAO = require("../DAOs/rule.DAO");
 const Schema = require("../schemas/entity.schema");
 
 let Entity;
 const collName = "entities";
 
 class EntityDAO {
-  static async addSchema(db) {
+  static async init(db) {
     const collList = await db
       .listCollections({ name: collName }, { nameOnly: true })
       .toArray();
 
-    if (collList.length) {
+    if (collList.length)
       await db.command({ collMod: collName, validator: Schema });
-      console.log(`modified ${collName} schema`);
-    } else {
-      await db.createCollection(collName, { validator: Schema });
-      console.log(`created ${collName} schema`);
-    }
-  }
+    else await db.createCollection(collName, { validator: Schema });
 
-  static inject(db) {
     if (!Entity) Entity = db.collection(collName);
   }
 
@@ -159,7 +153,7 @@ class EntityDAO {
       matchedCount: mat,
     } = await Entity.updateOne(filter, update, options);
 
-    const ok = result.ok;
+    const ok = 1;
     const status =
       !mod && !ups && mat
         ? "unmodified"
@@ -195,6 +189,8 @@ class EntityDAO {
             ? "link"
             : attr.type === "alias"
             ? "alias"
+            : attr.type === "expression"
+            ? { expression: attr.expression, value: attr.value }
             : "error";
       }
     result.id = id;
@@ -254,6 +250,7 @@ class EntityDAO {
       alias,
       link,
       record,
+      expression,
       queries,
       timestamp,
     } = props;
@@ -282,6 +279,12 @@ class EntityDAO {
     for (const attr in record) {
       if (record[attr]) setObj["attrs." + attr + ".record"] = true; //!!!
     }
+    for (const attr in expression) {
+      setObj["attrs." + attr] = {
+        type: "expression",
+        expression: expression[attr],
+      };
+    }
 
     let queryObj = {};
     for (const key in queries) {
@@ -296,6 +299,8 @@ class EntityDAO {
     const update = { $set: setObj };
     const options = { projection: projectionObj, returnOriginal: false };
     const result = await Entity.findOneAndUpdate(filter, update, options);
+
+    console.log(result);
 
     // record feature
     const updatedEntity = result.value;
@@ -315,6 +320,31 @@ class EntityDAO {
         }
       })
     );
+
+    // expression feature
+    let expressionArr = await RuleDAO.getMany(updatedEntity._id);
+    if (expressionArr.length) {
+      let toBeSolveEntity = await EntityDAO.getById(expressionArr[0].entity);
+      for (const key in toBeSolveEntity) {
+        if (typeof toBeSolveEntity[key] === "object") {
+          for (const thingg in toBeSolveEntity[key]) {
+            if (thingg.expression) {
+              console.log(thingg.expression);
+              // if (thingg === "$add") {
+              //   let afterSolve = await solveExpression(
+              //     "add",
+              //     toBeSolveEntity[key][thingg]
+              //   );
+              //   await EntityDAO.updateOne({
+              //     id: expressionArr[0].entity,
+              //     data: { [key]: afterSolve },
+              //   });
+              // }
+            }
+          }
+        }
+      }
+    }
 
     return { ok: result.ok };
   }
@@ -439,6 +469,13 @@ async function solveRecords(props) {
 function ObjectIdsArr(ids) {
   let idsArr = Array.isArray(ids) ? ids : ids.split(",");
   return idsArr.map((id) => ObjectId(id));
+}
+
+async function solveExpression(expr, arr) {
+  let a = await EntityDAO.getById(arr[0].entity, arr[0].attr);
+  let b = await EntityDAO.getById(arr[1].entity, arr[1].attr);
+  if (expr === "add") return a[arr[0].attr] + b[arr[1].attr];
+  else return 0;
 }
 
 module.exports = EntityDAO;
