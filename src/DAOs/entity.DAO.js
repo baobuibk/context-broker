@@ -1,6 +1,5 @@
 const { ObjectId } = require("mongodb");
-const RecordDAO = require("../DAOs/record.DAO");
-const RuleDAO = require("../DAOs/rule.DAO");
+
 const Schema = require("../schemas/entity.schema");
 
 let Entity;
@@ -26,11 +25,10 @@ class EntityDAO {
    * @param {Object} props.data data of new entity
    * @param {Object} props.alias alias of new entity
    * @param {Object} props.link link of new entity
-   * @param {Object} props.record which attrs to record history
    * @returns {Object}
    */
   static async add(props) {
-    const { parent, data, alias, link, record } = props;
+    const { parent, data, alias, link } = props;
 
     const parentEntity = parent
       ? await Entity.findOne(
@@ -66,9 +64,6 @@ class EntityDAO {
         },
       };
     }
-    for (const attr in record) {
-      if (record[attr]) attrsObj[attr].record = true;
-    }
 
     const newEntity = {
       path,
@@ -94,7 +89,7 @@ class EntityDAO {
 
   // upsertOne
   static async upsertOne(props) {
-    const { parent, data, alias, link, record, queries } = props;
+    const { parent, data, alias, link, queries } = props;
 
     const parentEntity = parent
       ? await Entity.findOne(
@@ -131,9 +126,6 @@ class EntityDAO {
           attr: link[attr].attr,
         },
       };
-    }
-    for (const attr in record) {
-      if (record[attr]) setObj["attrs." + attr + ".record"] = true;
     }
 
     let queryObj = {};
@@ -249,7 +241,6 @@ class EntityDAO {
       data,
       alias,
       link,
-      record,
       expression,
       queries,
       timestamp,
@@ -276,9 +267,7 @@ class EntityDAO {
       };
       projectionObj["attrs." + attr] = 1;
     }
-    for (const attr in record) {
-      if (record[attr]) setObj["attrs." + attr + ".record"] = true; //!!!
-    }
+
     for (const attr in expression) {
       setObj["attrs." + attr] = {
         type: "expression",
@@ -301,50 +290,6 @@ class EntityDAO {
     const result = await Entity.findOneAndUpdate(filter, update, options);
 
     console.log(result);
-
-    // record feature
-    const updatedEntity = result.value;
-    const attrs = updatedEntity.attrs;
-    await Promise.all(
-      Object.entries(attrs).map(async ([attrName, attr]) => {
-        if (attr.type === "data" && attr.record === true) {
-          const sample = {
-            v: attr.value,
-            t: timestamp ? new Date(timestamp) : new Date(),
-          };
-          return await RecordDAO.addOneSample(
-            updatedEntity._id,
-            attrName,
-            sample
-          );
-        }
-      })
-    );
-
-    // expression feature
-    let expressionArr = await RuleDAO.getMany(updatedEntity._id);
-    if (expressionArr.length) {
-      let toBeSolveEntity = await EntityDAO.getById(expressionArr[0].entity);
-      for (const key in toBeSolveEntity) {
-        if (typeof toBeSolveEntity[key] === "object") {
-          for (const thingg in toBeSolveEntity[key]) {
-            if (thingg.expression) {
-              console.log(thingg.expression);
-              // if (thingg === "$add") {
-              //   let afterSolve = await solveExpression(
-              //     "add",
-              //     toBeSolveEntity[key][thingg]
-              //   );
-              //   await EntityDAO.updateOne({
-              //     id: expressionArr[0].entity,
-              //     data: { [key]: afterSolve },
-              //   });
-              // }
-            }
-          }
-        }
-      }
-    }
 
     return { ok: result.ok };
   }
@@ -369,31 +314,6 @@ class EntityDAO {
     };
     return (await Entity.deleteMany(filter)).result;
   }
-
-  // Get records for entity with specific id
-  static async getRecordsById(props) {
-    const { id, attrs: attrsArr, date, from, to, interval, filter } = props;
-
-    const query = { _id: ObjectId(id) };
-    const options = { projection: { attrs: 1, _id: 0 } };
-    const entity = await Entity.findOne(query, options);
-    if (!entity) throw new Error("entity not found");
-
-    let result = {};
-    for (const attr of attrsArr) {
-      result[attr] = await solveRecords({
-        entity: id,
-        attrsObj: entity.attrs,
-        attrName: attr,
-        date,
-        from,
-        to,
-        interval,
-        filter,
-      });
-    }
-    return result;
-  }
 }
 
 // STATIC FUNCTIONS
@@ -412,54 +332,6 @@ async function solveAttr(attrsObj, key) {
         return result[attr1];
       case "alias":
         return solveAttr(attrsObj, attr.target);
-      default:
-        throw new Error("type is strange");
-    }
-  } else return null;
-}
-
-async function solveRecords(props) {
-  const { entity, attrsObj, attrName, date, from, to, interval, filter } =
-    props;
-
-  const attr = attrsObj[attrName];
-  if (attr) {
-    const type = attr.type;
-    switch (type) {
-      case "data":
-        return RecordDAO.get({
-          entity,
-          attr: attrName,
-          date,
-          from,
-          to,
-          interval,
-          filter,
-        });
-      case "link":
-        const targetEntity = attr.target.entity;
-        const targetAttr = attr.target.attr;
-        const result = await EntityDAO.getRecordsById({
-          id: targetEntity,
-          attrs: [targetAttr],
-          date,
-          from,
-          to,
-          interval,
-          filter,
-        });
-        return result[targetAttr];
-      case "alias":
-        return solveRecords({
-          entity,
-          attrsObj,
-          attrName: attr.target,
-          date,
-          from,
-          to,
-          interval,
-          filter,
-        });
       default:
         throw new Error("type is strange");
     }

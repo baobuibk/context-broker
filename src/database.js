@@ -1,8 +1,6 @@
 const { MongoClient } = require("mongodb");
 
 const EntityDAO = require("./DAOs/entity.DAO");
-const RecordDAO = require("./DAOs/record.DAO");
-const RuleDAO = require("./DAOs/rule.DAO");
 
 let mongoClient;
 let db;
@@ -22,8 +20,6 @@ class MongoDB {
       db = mongoClient.db(DB_NAME);
 
       await EntityDAO.init(db);
-      await RecordDAO.init(db);
-      await RuleDAO.init(db);
       console.log("initialized database");
     }
   }

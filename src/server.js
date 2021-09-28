@@ -1,25 +1,18 @@
 const express = require("express");
-const cors = require("cors");
-const morganLogger = require("morgan");
-const entityRoute = require("./routes/entity.route");
-const ruleRoute = require("./routes/rule.route");
-const telemetryRoute = require("./routes/telemetry.route");
-const provisionRoute = require("./routes/provision.route");
-
 const app = express();
 
+const cors = require("cors");
 app.use(cors());
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+const morganLogger = require("morgan");
 app.use(morganLogger("dev"));
 
+const entityRoute = require("./routes/entity.route");
 app.use("/entity", entityRoute);
 app.use("/entities", entityRoute);
-app.use("/rules", ruleRoute);
-app.use("/telemetry", telemetryRoute);
-app.use("/provision", provisionRoute);
 
 app.get("/check", (req, res) => res.send("ok"));
 
