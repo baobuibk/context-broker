@@ -5,28 +5,24 @@ const EntityDAO = require("./DAOs/entity.DAO");
 let mongoClient;
 let db;
 
-class MongoDB {
-  static async connect(url) {
+const database = {
+  connect: async (dbUrl) => {
     if (!mongoClient) {
-      mongoClient = new MongoClient(url, { serverSelectionTimeoutMS: 10000 });
+      mongoClient = new MongoClient(dbUrl, { serverSelectionTimeoutMS: 10000 });
 
       await mongoClient.connect();
-      console.log("connected to mongodb");
+      console.log("mongodb client connect");
     }
-  }
+  },
 
-  static async init(DB_NAME) {
+  init: async (dbName) => {
     if (!db) {
-      db = mongoClient.db(DB_NAME);
+      db = mongoClient.db(dbName);
 
       await EntityDAO.init(db);
-      console.log("initialized database");
+      console.log("mongodb database init");
     }
-  }
+  },
+};
 
-  static async close() {
-    await mongoClient.close();
-  }
-}
-
-module.exports = MongoDB;
+module.exports = database;

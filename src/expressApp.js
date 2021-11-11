@@ -14,9 +14,7 @@ const entityRoute = require("./routes/entity.route");
 app.use("/entity", entityRoute);
 app.use("/entities", entityRoute);
 
-app.get("/check", (req, res) => res.send("ok"));
-
-// app.use("/", express.static("build"));
-app.use("*", (req, res) => res.status(404).json({ error: "not found" }));
+app.get("/ping", (req, res) => res.send("pong"));
+app.use("*", (req, res) => res.sendStatus(404));
 
 module.exports = app;
