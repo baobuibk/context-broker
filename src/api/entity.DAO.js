@@ -1,6 +1,5 @@
 const { ObjectId } = require("mongodb");
-
-const Schema = require("../schemas/entity.schema");
+const Schema = require("./entity.schema");
 
 let Entity;
 const collName = "entities";
@@ -18,17 +17,8 @@ class EntityDAO {
     if (!Entity) Entity = db.collection(collName);
   }
 
-  /**
-   * Create a new entity
-   * @param {Object} props Passed information
-   * @param {string} props.parent id of parent entity
-   * @param {Object} props.data data of new entity
-   * @param {Object} props.alias alias of new entity
-   * @param {Object} props.link link of new entity
-   * @returns {Object}
-   */
   static async add(props) {
-    const { parent, data, alias, link } = props;
+    const { attrs, parent } = props;
 
     const parentEntity = parent
       ? await Entity.findOne(
@@ -42,7 +32,15 @@ class EntityDAO {
         : parent
       : "";
 
-    let attrsObj = {};
+  
+
+    for (const [attrKey, attrValue] of Object.entries(attrs)) {
+      if (attrValue.type === "alias")
+
+      if (attrValue.type === "")
+     
+    }
+
     for (const attr in data) {
       attrsObj[attr] = {
         type: "data",

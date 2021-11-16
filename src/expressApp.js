@@ -10,7 +10,7 @@ app.use(express.urlencoded({ extended: true }));
 const morganLogger = require("morgan");
 app.use(morganLogger("dev"));
 
-const entityRoute = require("./routes/entity.route");
+const entityRoute = require("./api/entity.route");
 app.use("/entity", entityRoute);
 app.use("/entities", entityRoute);
 

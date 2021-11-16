@@ -1,11 +1,10 @@
 const express = require("express");
 const router = express.Router();
 
-const EntityController = require("../controllers/entity.controller");
+const EntityController = require("./entity.controller");
 
-router.post("/add", EntityController.add);
 router.get("/get", EntityController.get);
-router.get("/get/records", EntityController.getRecords);
+router.post("/add", EntityController.add);
 router.post("/update", EntityController.update);
 router.get("/delete", EntityController.delete);
 

@@ -1,6 +1,6 @@
 const { MongoClient } = require("mongodb");
 
-const EntityDAO = require("./DAOs/entity.DAO");
+const EntityDAO = require("./api/entity.DAO");
 
 let mongoClient;
 let db;
