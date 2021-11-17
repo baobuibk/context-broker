@@ -14,7 +14,7 @@ const entityRoute = require("./api/entity.route");
 app.use("/entity", entityRoute);
 app.use("/entities", entityRoute);
 
-app.get("/ping", (req, res) => res.send("pong"));
+app.get("/status", (req, res) => res.sendStatus(200));
 app.use("*", (req, res) => res.sendStatus(404));
 
 module.exports = app;

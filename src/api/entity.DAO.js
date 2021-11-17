@@ -1,8 +1,9 @@
 const { ObjectId } = require("mongodb");
+const redisClient = require("../redis");
 const Schema = require("./entity.schema");
 
 let Entity;
-const collName = "entities";
+const collName = "entity";
 
 class EntityDAO {
   static async init(db) {
@@ -17,300 +18,119 @@ class EntityDAO {
     if (!Entity) Entity = db.collection(collName);
   }
 
-  static async add(props) {
-    const { attrs, parent } = props;
-
-    const parentEntity = parent
+  static async add({ attrs, parentId }) {
+    const parentEntity = parentId
       ? await Entity.findOne(
-          { _id: ObjectId(parent) },
+          { _id: ObjectId(parentId) },
           { projection: { path: 1 } }
         )
       : null;
     const path = parentEntity
       ? parentEntity.path
-        ? parentEntity.path + "," + parent
-        : parent
+        ? parentEntity.path + "," + parentId
+        : parentId
       : "";
 
-  
-
-    for (const [attrKey, attrValue] of Object.entries(attrs)) {
-      if (attrValue.type === "alias")
-
-      if (attrValue.type === "")
-     
-    }
-
-    for (const attr in data) {
-      attrsObj[attr] = {
-        type: "data",
-        value: data[attr],
-      };
-    }
-    for (const attr in alias) {
-      attrsObj[attr] = {
-        type: "alias",
-        target: alias[attr],
-      };
-    }
-    for (const attr in link) {
-      attrsObj[attr] = {
-        type: "link",
-        target: {
-          entity: ObjectId(link[attr].entity),
-          attr: link[attr].attr,
-        },
-      };
-    }
-
-    const newEntity = {
+    let newEntity = {
       path,
-      parent: parent ? ObjectId(parent) : null,
-      attrs: attrsObj,
+      parentId: parentId ? ObjectId(parentId) : null,
+      attrs: {},
     };
+
+    for (const [attrName, attr] of Object.entries(attrs)) {
+      if (typeof attr === "object" && !Array.isArray(attr) && attr !== null) {
+        if (attr.type === "alias") {
+          newEntity.attrs[attrName] = { type: attr.type, target: attr.target };
+        } else if (attr.type === "link") {
+          newEntity.attrs[attrName] = {
+            type: attr.type,
+            target: {
+              entityId: ObjectId(attr.target.entityId),
+              attr: attr.target.attr,
+            },
+          };
+        } else throw new Error("wrong attr format");
+      } else if (
+        typeof attr === "number" ||
+        typeof attr === "boolean" ||
+        typeof attr === "string"
+      ) {
+        newEntity.attrs[attrName] = { type: typeof attr, value: attr };
+      } else throw new Error("wrong attr format");
+    }
+
     const { insertedId } = await Entity.insertOne(newEntity);
-    let result = { id: insertedId };
-    for (const key in attrsObj) {
-      const attr = attrsObj[key];
-      result[key] =
-        attr.type === "data"
-          ? attr.value
-          : attr.type === "link"
-          ? "link"
-          : attr.type === "alias"
-          ? "alias"
-          : "error";
-    }
-
-    return result;
-  }
-
-  // upsertOne
-  static async upsertOne(props) {
-    const { parent, data, alias, link, queries } = props;
-
-    const parentEntity = parent
-      ? await Entity.findOne(
-          { _id: ObjectId(parent) },
-          { projection: { path: 1 } }
-        )
-      : null;
-    const path = parentEntity
-      ? parentEntity.path
-        ? parentEntity.path + "," + parent
-        : parent
-      : "";
-
-    let setObj = {
-      path,
-      parent: parent ? ObjectId(parent) : null,
-    };
-
-    for (const attr in data) {
-      setObj["attrs." + attr + ".type"] = "data";
-      setObj["attrs." + attr + ".value"] = data[attr];
-    }
-    for (const attr in alias) {
-      setObj["attrs." + attr] = {
-        type: "alias",
-        target: alias[attr],
-      };
-    }
-    for (const attr in link) {
-      setObj["attrs." + attr] = {
-        type: "link",
-        target: {
-          entity: ObjectId(link[attr].entity),
-          attr: link[attr].attr,
-        },
-      };
-    }
-
-    let queryObj = {};
-    for (const key in queries) {
-      queryObj[`attrs.${key}.value`] = queries[key];
-    }
-    const filter = {
-      ...(parent && { parent: ObjectId(parent) }),
-      ...queryObj,
-    };
-    const update = { $set: setObj };
-    const options = { upsert: true };
-    const {
-      result,
-      modifiedCount: mod,
-      upsertedCount: ups,
-      matchedCount: mat,
-    } = await Entity.updateOne(filter, update, options);
-
-    const ok = 1;
-    const status =
-      !mod && !ups && mat
-        ? "unmodified"
-        : mod && !ups && mat
-        ? "modified"
-        : !mod && ups && !mat
-        ? "upserted"
-        : "error";
-    return { ok, status };
+    return insertedId;
   }
 
   // getById
   static async getById(id, attrs) {
     const query = { _id: ObjectId(id) };
-    const options = { projection: { attrs: 1, _id: 0 } };
+    const options = { projection: { attrs: 1 } };
     const entity = await Entity.findOne(query, options);
     if (!entity) return null;
 
-    const attrsObj = entity.attrs;
-    let result = {};
-    if (attrs) {
-      const attrsArr = Array.isArray(attrs) ? attrs : attrs.split(",");
-      for (const key of attrsArr) {
-        result[key] = await solveAttr(attrsObj, key);
-      }
-    } else
-      for (const key in attrsObj) {
-        const attr = attrsObj[key];
-        result[key] =
-          attr.type === "data"
-            ? attr.value
-            : attr.type === "link"
-            ? "link"
-            : attr.type === "alias"
-            ? "alias"
-            : attr.type === "expression"
-            ? { expression: attr.expression, value: attr.value }
-            : "error";
-      }
-    result.id = id;
-    return result;
+    return solveEntity(entity, attrs);
   }
 
   // getMany
-  static async getMany({ ids, parent, ancestor, attrs, queries }) {
+  static async getMany({ ids, parentId, ancestorId, attrs, queries }) {
     let queryObj = {};
     for (const key in queries) {
       queryObj[`attrs.${key}.value`] = queries[key];
     }
     const query = {
       ...(ids && { _id: { $in: ObjectIdsArr(ids) } }),
+      ...(parentId && { parentId: ObjectId(parentId) }),
+      ...(ancestorId && { path: new RegExp(ancestorId) }),
       //  path = new RegExp(parent + "$");
-      ...(parent && { parent: ObjectId(parent) }),
-      ...(ancestor && { path: new RegExp(ancestor) }),
       ...queryObj,
     };
 
     const options = { projection: { attrs: 1 } };
     const entitiesArr = await Entity.find(query, options).toArray();
+
     return await Promise.all(
-      entitiesArr.map(async (entity) => {
-        const attrsObj = entity.attrs;
-        let result = {};
-        if (attrs) {
-          const attrsArr = Array.isArray(attrs) ? attrs : attrs.split(",");
-          for (const key of attrsArr) {
-            result[key] = await solveAttr(attrsObj, key);
-          }
-        } else
-          for (const key in attrsObj) {
-            const attr = attrsObj[key];
-            result[key] =
-              attr.type === "data"
-                ? attr.value
-                : attr.type === "link"
-                ? "link"
-                : attr.type === "alias"
-                ? "alias"
-                : "error";
-          }
-        result.id = entity._id;
-        return result;
-      })
+      entitiesArr.map(async (entity) => solveEntity(entity, attrs))
     );
   }
 
   // updateOne
-  static async updateOne(props) {
-    const {
-      id,
-      parent,
-      ancestor,
-      data,
-      alias,
-      link,
-      expression,
-      queries,
-      timestamp,
-    } = props;
+  static async updateById(id, attrs) {
+    const filter = { ...(id && { _id: ObjectId(id) }) };
 
     let setObj = {};
-    let projectionObj = {};
-    for (const attr in data) {
-      setObj["attrs." + attr + ".type"] = "data";
-      setObj["attrs." + attr + ".value"] = data[attr];
-      projectionObj["attrs." + attr] = 1;
+    for (const attr in attrs) {
+      setObj["attrs." + attr + ".value"] = attrs[attr];
     }
-    for (const attr in alias) {
-      setObj["attrs." + attr] = { type: "alias", target: alias[attr] };
-      projectionObj["attrs." + attr] = 1;
-    }
-    for (const attr in link) {
-      setObj["attrs." + attr] = {
-        type: "link",
-        target: {
-          entity: ObjectId(link[attr].entity),
-          attr: link[attr].attr,
-        },
-      };
-      projectionObj["attrs." + attr] = 1;
-    }
-
-    for (const attr in expression) {
-      setObj["attrs." + attr] = {
-        type: "expression",
-        expression: expression[attr],
-      };
-    }
-
-    let queryObj = {};
-    for (const key in queries) {
-      queryObj[`attrs.${key}.value`] = queries[key];
-    }
-    const filter = {
-      ...(id && { _id: ObjectId(id) }),
-      ...(parent && { parent: ObjectId(parent) }),
-      ...(ancestor && { path: new RegExp(ancestor) }),
-      ...queryObj,
-    };
     const update = { $set: setObj };
+
+    let projectionObj = {};
     const options = { projection: projectionObj, returnOriginal: false };
-    const result = await Entity.findOneAndUpdate(filter, update, options);
+    await Entity.findOneAndUpdate(filter, update, options);
 
-    console.log(result);
-
-    return { ok: result.ok };
+    redisClient.publish("context-broker." + id, JSON.stringify(attrs));
   }
 
   // deleteById
   static async deleteById(id) {
     const filter = { _id: ObjectId(id) };
-    return (await Entity.deleteOne(filter)).result;
+    await Entity.deleteOne(filter);
   }
 
   // deleteMany
-  static async deleteMany({ ids, parent, ancestor, queries }) {
+  static async deleteMany({ ids, parentId, ancestorId, queries }) {
     let queryObj = {};
     for (const key in queries) {
       queryObj[`attrs.${key}.value`] = queries[key];
     }
     const filter = {
       ...(ids && { _id: { $in: ObjectIdsArr(ids) } }),
-      ...(parent && { parent: ObjectId(parent) }),
-      ...(ancestor && { path: new RegExp(ancestor) }),
+      ...(parentId && { parentId: ObjectId(parentId) }),
+      ...(ancestorId && { path: new RegExp(ancestorId) }),
       ...queryObj,
     };
-    return (await Entity.deleteMany(filter)).result;
+    await Entity.deleteMany(filter);
   }
 }
 
@@ -321,17 +141,16 @@ async function solveAttr(attrsObj, key) {
   if (attr) {
     const type = attr.type;
     switch (type) {
-      case "data":
-        return attr.value;
-      case "link":
-        const id = attr.target.entity;
-        const attr1 = attr.target.attr;
-        const result = await EntityDAO.getById(id, attr1);
-        return result[attr1];
       case "alias":
         return solveAttr(attrsObj, attr.target);
+      case "link":
+        const id = attr.target.entityId;
+        const targetAttr = attr.target.attr;
+        const result = await EntityDAO.getById(id, targetAttr);
+        return result[targetAttr];
+
       default:
-        throw new Error("type is strange");
+        return attr.value;
     }
   } else return null;
 }
@@ -341,11 +160,20 @@ function ObjectIdsArr(ids) {
   return idsArr.map((id) => ObjectId(id));
 }
 
-async function solveExpression(expr, arr) {
-  let a = await EntityDAO.getById(arr[0].entity, arr[0].attr);
-  let b = await EntityDAO.getById(arr[1].entity, arr[1].attr);
-  if (expr === "add") return a[arr[0].attr] + b[arr[1].attr];
-  else return 0;
+async function solveEntity(entity, attrs) {
+  const attrsObj = entity.attrs;
+  let result = { id: entity._id };
+
+  if (attrs) {
+    const attrsArr = Array.isArray(attrs) ? attrs : attrs.split(",");
+    for (const key of attrsArr) {
+      result[key] = await solveAttr(attrsObj, key);
+    }
+  } else
+    for (const key in attrsObj) {
+      result[key] = await solveAttr(attrsObj, key);
+    }
+  return result;
 }
 
 module.exports = EntityDAO;

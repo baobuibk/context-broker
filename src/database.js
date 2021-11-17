@@ -6,18 +6,18 @@ let mongoClient;
 let db;
 
 const database = {
-  connect: async (dbUrl) => {
+  connect: async (dbUri) => {
     if (!mongoClient) {
-      mongoClient = new MongoClient(dbUrl, { serverSelectionTimeoutMS: 10000 });
+      mongoClient = new MongoClient(dbUri, { serverSelectionTimeoutMS: 10000 });
 
       await mongoClient.connect();
       console.log("mongodb client connect");
     }
   },
 
-  init: async (dbName) => {
+  init: async () => {
     if (!db) {
-      db = mongoClient.db(dbName);
+      db = mongoClient.db("context-broker");
 
       await EntityDAO.init(db);
       console.log("mongodb database init");

@@ -4,8 +4,8 @@ class EntityController {
   // add
   static async add(req, res) {
     try {
-      const { parent, attrs } = req.body;
-      const result = await EntityDAO.add({ attrs, parent });
+      const { parentId, attrs } = req.body;
+      const result = await EntityDAO.add({ attrs, parentId });
       return res.json(result);
     } catch (error) {
       console.log(error);
@@ -16,21 +16,23 @@ class EntityController {
   // get
   static async get(req, res) {
     try {
-      const { id, ids, parent, ancestor, attrs, ...queries } = req.query;
+      const { id, ids, parentId, ancestorId, attrs, ...queries } = req.query;
+
       for (const key in queries) {
         if (queries[key] === "true") queries[key] = true;
         else if (queries[key] === "false") queries[key] = false;
         else if (queries[key] === "null") queries[key] = null;
       }
 
-      let result;
-      if (id) result = await EntityDAO.getById(id, attrs);
-      else if (ids) result = await EntityDAO.getByIds(ids, attrs);
-      else if (parent)
-        result = await EntityDAO.getByParent({ parent, attrs, queries });
-      else if (ancestor)
-        result = await EntityDAO.getByAncestor({ ancestor, attrs, queries });
-      else return res.sendStatus(400);
+      let result = id
+        ? await EntityDAO.getById(id, attrs)
+        : await EntityDAO.getMany({
+            ids,
+            parentId,
+            ancestorId,
+            attrs,
+            queries,
+          });
 
       return res.json(result);
     } catch (error) {
@@ -44,8 +46,8 @@ class EntityController {
     try {
       const { id, attrs } = req.body;
       if (!id || !attrs) return res.sendStatus(400);
-      const result = await EntityDAO.updateById(id, attrs);
-      return res.json(result);
+      await EntityDAO.updateById(id, attrs);
+      return res.sendStatus(200);
     } catch (error) {
       console.log(error);
       return res.sendStatus(500);
@@ -55,7 +57,10 @@ class EntityController {
   // delete
   static async delete(req, res) {
     try {
-      const { id, ids, parent, ancestor, ...queries } = req.query;
+      const { id, ids, parentId, ancestorId, ...queries } = req.query;
+
+      if (!(id || ids || parentId || ancestorId)) return res.sendStatus(400);
+
       for (const key in queries) {
         if (queries[key] === "true") queries[key] = true;
         else if (queries[key] === "false") queries[key] = false;
@@ -63,10 +68,7 @@ class EntityController {
       }
 
       if (id) await EntityDAO.deleteById(id);
-      else if (ids) await EntityDAO.deleteByIds(ids);
-      else if (parent) await EntityDAO.deleteByParent(parent, queries);
-      else if (ancestor) await EntityDAO.deleteByAncestor(ancestor, queries);
-      else return res.sendStatus(400);
+      else await EntityDAO.deleteMany({ ids, parentId, ancestorId, queries });
       return res.sendStatus(200);
     } catch (error) {
       console.log(error);

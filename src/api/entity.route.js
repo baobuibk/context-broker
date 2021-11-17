@@ -3,8 +3,8 @@ const router = express.Router();
 
 const EntityController = require("./entity.controller");
 
-router.get("/get", EntityController.get);
 router.post("/add", EntityController.add);
+router.get("/get", EntityController.get);
 router.post("/update", EntityController.update);
 router.get("/delete", EntityController.delete);
 
