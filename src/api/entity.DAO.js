@@ -206,23 +206,26 @@ async function solveRecord(attrsObj, entityId, key, options) {
           options,
         });
         return result[targetAttr];
-
       default:
+        const url = recordEngineUrl + "/api/record/get";
         return await axios
-          .get(recordEngineUrl + "/api/record/get", {
+          .get(url, {
             params: {
               entityId,
               attr: key,
               ...options,
             },
           })
-          .then((response) => response.data);
+          .then((response) => response.data)
+          .catch((error) => {
+            throw new Error(error.message);
+          });
     }
   } else return null;
 }
 
 async function solveEntityRecord({ entity, attrs, options }) {
-  let entityId = entity._id;
+  let entityId = entity._id.toString();
   let attrsObj = entity.attrs;
   let result = { id: entityId };
 
@@ -235,6 +238,7 @@ async function solveEntityRecord({ entity, attrs, options }) {
     for (const key in attrsObj) {
       result[key] = await solveRecord(attrsObj, entityId, key, options);
     }
+
   return result;
 }
 

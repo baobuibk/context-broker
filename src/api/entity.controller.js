@@ -79,6 +79,8 @@ class EntityController {
   static async getRecord(req, res) {
     try {
       const { id, attrs, date, from, to, interval, filter } = req.query;
+      if (!id) return res.sendStatus(400);
+
       const options = { date, from, to, interval, filter };
       const result = await EntityDAO.getRecordById({ id, attrs, options });
       return res.json(result);
