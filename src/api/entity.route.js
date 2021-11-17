@@ -8,4 +8,6 @@ router.get("/get", EntityController.get);
 router.post("/update", EntityController.update);
 router.get("/delete", EntityController.delete);
 
+router.get("/record/get", EntityController.getRecord);
+
 module.exports = router;

@@ -75,6 +75,18 @@ class EntityController {
       return res.sendStatus(500);
     }
   }
+
+  static async getRecord(req, res) {
+    try {
+      const { id, attrs, date, from, to, interval, filter } = req.query;
+      const options = { date, from, to, interval, filter };
+      const result = await EntityDAO.getRecordById({ id, attrs, options });
+      return res.json(result);
+    } catch (error) {
+      console.log(error);
+      return res.sendStatus(500);
+    }
+  }
 }
 
 module.exports = EntityController;

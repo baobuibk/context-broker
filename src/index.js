@@ -5,10 +5,10 @@ const database = require("./database");
 const expressApp = require("./express");
 
 async function main() {
-  const DB_URI =
-    process.env.DB_URI || "mongodb://localhost:27017/context-broker";
+  const DB_URI = process.env.DB_URI || "mongodb://localhost:27017";
   await database.connect(DB_URI);
-  await database.init();
+  const DB_NAME = process.env.DB_NAME;
+  await database.init(DB_NAME);
 
   const httpServer = http.createServer(expressApp);
   const PORT = process.env.PORT || 3000;

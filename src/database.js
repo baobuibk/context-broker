@@ -15,9 +15,9 @@ const database = {
     }
   },
 
-  init: async () => {
+  init: async (dbName) => {
     if (!db) {
-      db = mongoClient.db("context-broker");
+      db = mongoClient.db(dbName);
 
       await EntityDAO.init(db);
       console.log("mongodb database init");

@@ -11,8 +11,8 @@ const morganLogger = require("morgan");
 app.use(morganLogger("dev"));
 
 const entityRoute = require("./api/entity.route");
-app.use("/entity", entityRoute);
-app.use("/entities", entityRoute);
+app.use("/api/entity", entityRoute);
+app.use("/api/entities", entityRoute);
 
 app.get("/status", (req, res) => res.sendStatus(200));
 app.use("*", (req, res) => res.sendStatus(404));

@@ -1,6 +1,7 @@
 const { ObjectId } = require("mongodb");
 const redisClient = require("../redis");
 const Schema = require("./entity.schema");
+const axios = require("axios");
 
 let Entity;
 const collName = "entity";
@@ -70,7 +71,7 @@ class EntityDAO {
     const entity = await Entity.findOne(query, options);
     if (!entity) return null;
 
-    return solveEntity(entity, attrs);
+    return solveEntityAttrs(entity, attrs);
   }
 
   // getMany
@@ -91,7 +92,7 @@ class EntityDAO {
     const entitiesArr = await Entity.find(query, options).toArray();
 
     return await Promise.all(
-      entitiesArr.map(async (entity) => solveEntity(entity, attrs))
+      entitiesArr.map(async (entity) => solveEntityAttrs(entity, attrs))
     );
   }
 
@@ -132,9 +133,26 @@ class EntityDAO {
     };
     await Entity.deleteMany(filter);
   }
+
+  static async getRecordById(props) {
+    const { id, attrs, options } = props;
+
+    const entity = await Entity.findOne(
+      { _id: ObjectId(id) },
+      { projection: { attrs: 1 } }
+    );
+    if (!entity) return { id: id };
+
+    return solveEntityRecord({ entity, attrs, options });
+  }
 }
 
 // STATIC FUNCTIONS
+
+function ObjectIdsArr(ids) {
+  let idsArr = Array.isArray(ids) ? ids : ids.split(",");
+  return idsArr.map((id) => ObjectId(id));
+}
 
 async function solveAttr(attrsObj, key) {
   const attr = attrsObj[key];
@@ -155,12 +173,7 @@ async function solveAttr(attrsObj, key) {
   } else return null;
 }
 
-function ObjectIdsArr(ids) {
-  let idsArr = Array.isArray(ids) ? ids : ids.split(",");
-  return idsArr.map((id) => ObjectId(id));
-}
-
-async function solveEntity(entity, attrs) {
+async function solveEntityAttrs(entity, attrs) {
   const attrsObj = entity.attrs;
   let result = { id: entity._id };
 
@@ -172,6 +185,55 @@ async function solveEntity(entity, attrs) {
   } else
     for (const key in attrsObj) {
       result[key] = await solveAttr(attrsObj, key);
+    }
+  return result;
+}
+
+const recordEngineUrl = process.env.RECORD_ENGINE_URL;
+async function solveRecord(attrsObj, entityId, key, options) {
+  const attr = attrsObj[key];
+  if (attr) {
+    const type = attr.type;
+    switch (type) {
+      case "alias":
+        return solveRecord(attrsObj, entityId, attr.target, options);
+      case "link":
+        const targetId = attr.target.entityId;
+        const targetAttr = attr.target.attr;
+        const result = await EntityDAO.getRecordById({
+          id: targetId,
+          attrs: targetAttr,
+          options,
+        });
+        return result[targetAttr];
+
+      default:
+        return await axios
+          .get(recordEngineUrl + "/api/record/get", {
+            params: {
+              entityId,
+              attr: key,
+              ...options,
+            },
+          })
+          .then((response) => response.data);
+    }
+  } else return null;
+}
+
+async function solveEntityRecord({ entity, attrs, options }) {
+  let entityId = entity._id;
+  let attrsObj = entity.attrs;
+  let result = { id: entityId };
+
+  if (attrs) {
+    const attrsArr = Array.isArray(attrs) ? attrs : attrs.split(",");
+    for (const key of attrsArr) {
+      result[key] = await solveRecord(attrsObj, entityId, key, options);
+    }
+  } else
+    for (const key in attrsObj) {
+      result[key] = await solveRecord(attrsObj, entityId, key, options);
     }
   return result;
 }
