@@ -3,6 +3,10 @@ const mqtt = require("mqtt");
 const MQTT_BROKER_URL = process.env.MQTT_BROKER_URL;
 let client = mqtt.connect(MQTT_BROKER_URL);
 
+client.on("error", (error) => {
+  console.log(error);
+});
+
 client.on("connect", () => {
   console.log("connected to mqtt broker");
 
