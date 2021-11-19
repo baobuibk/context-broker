@@ -11,7 +11,7 @@ async function main() {
   await database.init(DB_NAME);
 
   const httpServer = http.createServer(expressApp);
-  const PORT = process.env.PORT || 3000;
+  const PORT = process.env.PORT || 8000;
   httpServer.listen(PORT, () => {
     console.log("http server is listening on port", PORT);
   });
