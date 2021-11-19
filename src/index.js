@@ -1,6 +1,8 @@
 const http = require("http");
 
-const redisClient = require("./redis");
+require("./redis");
+require("./mqtt");
+
 const database = require("./database");
 const expressApp = require("./express");
 

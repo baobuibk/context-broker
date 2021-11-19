@@ -4,7 +4,7 @@ class EntityController {
   // add
   static async add(req, res) {
     try {
-      const { parentId, attrs } = req.body;
+      const { attrs, parentId } = req.body;
       const result = await EntityDAO.add({ attrs, parentId });
       return res.json(result);
     } catch (error) {
@@ -46,7 +46,7 @@ class EntityController {
     try {
       const { id, attrs } = req.body;
       if (!id || !attrs) return res.sendStatus(400);
-      await EntityDAO.updateById(id, attrs);
+      await EntityDAO.updateOneById(id, attrs);
       return res.sendStatus(200);
     } catch (error) {
       console.log(error);

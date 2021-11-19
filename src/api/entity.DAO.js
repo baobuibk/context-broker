@@ -41,7 +41,10 @@ class EntityDAO {
     for (const [attrName, attr] of Object.entries(attrs)) {
       if (typeof attr === "object" && !Array.isArray(attr) && attr !== null) {
         if (attr.type === "alias") {
-          newEntity.attrs[attrName] = { type: attr.type, target: attr.target };
+          newEntity.attrs[attrName] = {
+            type: attr.type,
+            target: { attr: attr.target.attr },
+          };
         } else if (attr.type === "link") {
           newEntity.attrs[attrName] = {
             type: attr.type,
@@ -49,6 +52,24 @@ class EntityDAO {
               entityId: ObjectId(attr.target.entityId),
               attr: attr.target.attr,
             },
+          };
+        } else if (attr.type === "number") {
+          newEntity.attrs[attrName] = {
+            type: attr.type,
+            value: attr.value,
+            ...attr,
+          };
+        } else if (attr.type === "string") {
+          newEntity.attrs[attrName] = {
+            type: attr.type,
+            value: attr.value,
+            ...attr,
+          };
+        } else if (attr.type === "boolean") {
+          newEntity.attrs[attrName] = {
+            type: attr.type,
+            value: attr.value,
+            ...attr,
           };
         } else throw new Error("wrong attr format");
       } else if (
@@ -97,7 +118,7 @@ class EntityDAO {
   }
 
   // updateOne
-  static async updateById(id, attrs) {
+  static async updateOneById(id, attrs) {
     const filter = { ...(id && { _id: ObjectId(id) }) };
 
     let setObj = {};
@@ -111,6 +132,35 @@ class EntityDAO {
     await Entity.findOneAndUpdate(filter, update, options);
 
     redisClient.publish("context-broker." + id, JSON.stringify(attrs));
+  }
+
+  static async updateOne({ ids, parentId, ancestorId, attrs, queries }) {
+    let queryObj = {};
+    for (const key in queries) {
+      queryObj[`attrs.${key}.value`] = queries[key];
+    }
+    let filter = {
+      ...(ids && { _id: { $in: ObjectIdsArr(ids) } }),
+      ...(parentId && { parentId: ObjectId(parentId) }),
+      ...(ancestorId && { path: new RegExp(ancestorId) }),
+      //  path = new RegExp(parent + "$");
+      ...queryObj,
+    };
+
+    let setObj = {};
+    for (const attr in attrs) {
+      setObj["attrs." + attr + ".value"] = attrs[attr];
+    }
+    const update = { $set: setObj };
+
+    const updateResult = await Entity.findOneAndUpdate(filter, update);
+
+    if (updateResult.value) {
+      redisClient.publish(
+        "context-broker." + updateResult.value._id.toString(),
+        JSON.stringify(attrs)
+      );
+    }
   }
 
   // deleteById
@@ -160,7 +210,7 @@ async function solveAttr(attrsObj, key) {
     const type = attr.type;
     switch (type) {
       case "alias":
-        return solveAttr(attrsObj, attr.target);
+        return solveAttr(attrsObj, attr.target.attr);
       case "link":
         const id = attr.target.entityId;
         const targetAttr = attr.target.attr;
@@ -196,7 +246,7 @@ async function solveRecord(attrsObj, entityId, key, options) {
     const type = attr.type;
     switch (type) {
       case "alias":
-        return solveRecord(attrsObj, entityId, attr.target, options);
+        return solveRecord(attrsObj, entityId, attr.target.attr, options);
       case "link":
         const targetId = attr.target.entityId;
         const targetAttr = attr.target.attr;
