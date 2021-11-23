@@ -1,7 +1,6 @@
 const http = require("http");
 
 require("./redis");
-require("./mqtt");
 
 const database = require("./database");
 const expressApp = require("./express");

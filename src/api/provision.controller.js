@@ -1,5 +1,4 @@
 const EntityDAO = require("./entity.DAO");
-const redis = require("redis");
 const redisClient = require("../redis");
 
 const PROVISION_TIMEOUT = Number(process.env.PROVISION_TIMEOUT) || 120;

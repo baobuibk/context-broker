@@ -18,6 +18,9 @@ class EntityDAO {
     else await db.createCollection(collName, { validator: Schema });
 
     if (!Entity) Entity = db.collection(collName);
+
+    const result = await Entity.createIndex("id", { unique: true });
+    console.log(result);
   }
 
   static async createEntity(entityId, entityType, attributes) {
@@ -150,6 +153,60 @@ class EntityDAO {
     //   "context-broker." + id,
     //   JSON.stringify({ updates, ...(timestamp && { timestamp }) })
     // );
+  }
+
+  static async batchUpsert(entities) {
+    let newEntities = entities.map((entity) => {
+      let { id, type, ...attributes } = entity;
+
+      if (!isValidString(id)) throw new Error("id");
+      if (!isValidString(type)) throw new Error("type");
+
+      let newEntity = { id, type };
+
+      for (const [attributeName, attributeData] of Object.entries(attributes)) {
+        if (
+          Array.isArray(attributeData) ||
+          typeof attributeData === "number" ||
+          typeof attributeData === "boolean" ||
+          typeof attributeData === "string"
+        ) {
+          newEntity[attributeName] = { type: "Property", value: attributeData };
+        } else if (isValidObject(attributeData)) {
+          const { type, target, value, ...metadata } = attributeData;
+
+          if (type === "Alias" && isValidString(target?.attr)) {
+            newEntity[attributeName] = {
+              type: "Alias",
+              target: { attr: target.attr },
+              ...metadata,
+            };
+          } else if (
+            type === "Link" &&
+            isValidString(target?.attr) &&
+            isValidString(target?.id)
+          ) {
+            newEntity[attributeName] = {
+              type: "Link",
+              target: { id: target.id, attr: target.attr },
+              ...metadata,
+            };
+          } else if (type === "Property") {
+            newEntity[attributeName] = { type: "Property", value, ...metadata };
+          } else {
+            throw new Error("attribute");
+          }
+        } else {
+          throw new Error("dont know");
+        }
+
+        return newEntity;
+      }
+    });
+
+    const result = await Entity.insertMany(entities);
+    console.log(result);
+    return { ok: 1, n: result.insertedCount };
   }
 
   static async listEntities({ id, type, attrs, options, q }) {

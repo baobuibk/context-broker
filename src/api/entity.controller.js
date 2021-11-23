@@ -36,7 +36,18 @@ class EntityController {
   static async batchCreate() {}
 
   // batch create/overwrite new data entities
-  static async batchUpsert() {}
+  static async batchUpsert(req, res) {
+    const entities = req.body;
+
+    try {
+      const { ok, n } = await EntityDAO.batchUpsert(entities);
+
+      if (ok) return res.status(201).send({ ok, n });
+    } catch (error) {
+      console.log(error);
+      return res.status(400).send(error.message);
+    }
+  }
 
   // list entities
   static async listEntities(req, res) {
