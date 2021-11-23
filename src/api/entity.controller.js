@@ -1,11 +1,56 @@
 const EntityDAO = require("./entity.DAO");
 
 class EntityController {
-  // add
-  static async add(req, res) {
+  // create new entities
+  static async createEntity(req, res) {
+    const { id, type, ...attributes } = req.body;
+
     try {
-      const { attrs, parentId } = req.body;
-      const result = await EntityDAO.add({ attrs, parentId });
+      const { ok } = await EntityDAO.createEntity(id, type, attributes);
+
+      if (ok) return res.sendStatus(201);
+      else return res.sendStatus(409);
+    } catch (error) {
+      console.log(error);
+      return res.sendStatus(500);
+    }
+  }
+
+  // add new attributes
+  static async addAttribute(req, res) {
+    const { entityId } = req.params;
+    const attributes = req.body;
+
+    try {
+      const { ok } = await EntityDAO.addAttribute(entityId, attributes);
+
+      if (ok) return res.sendStatus(201);
+      else return res.sendStatus(409);
+    } catch (error) {
+      console.log(error);
+      return res.sendStatus(500);
+    }
+  }
+
+  // batch create new data entities or attributes
+  static async batchCreate() {}
+
+  // batch create/overwrite new data entities
+  static async batchUpsert() {}
+
+  // list entities
+  static async listEntities(req, res) {
+    const { type, options, attrs, id, q } = req.query;
+
+    try {
+      const result = await EntityDAO.listEntities({
+        type,
+        options,
+        attrs,
+        id,
+        q,
+      });
+
       return res.json(result);
     } catch (error) {
       console.log(error);
@@ -13,26 +58,20 @@ class EntityController {
     }
   }
 
-  // get
-  static async get(req, res) {
+  // retrieve the details of a single entity
+  static async retrieveEntity(req, res) {
+    const { entityId } = req.params;
+    const { type, options, attrs, q } = req.query;
+
+    // options=sysAttrs|keyValues
+
     try {
-      const { id, ids, parentId, ancestorId, attrs, ...queries } = req.query;
-
-      for (const key in queries) {
-        if (queries[key] === "true") queries[key] = true;
-        else if (queries[key] === "false") queries[key] = false;
-        else if (queries[key] === "null") queries[key] = null;
-      }
-
-      let result = id
-        ? await EntityDAO.getById(id, attrs)
-        : await EntityDAO.getMany({
-            ids,
-            parentId,
-            ancestorId,
-            attrs,
-            queries,
-          });
+      const result = await EntityDAO.retrieveEntity(entityId, {
+        type,
+        options,
+        attrs,
+        q,
+      });
 
       return res.json(result);
     } catch (error) {
@@ -41,52 +80,90 @@ class EntityController {
     }
   }
 
-  // update
-  static async update(req, res) {
+  // update an attribute
+  static async updateAttribute(req, res) {
+    const { entityId, attribute } = req.params;
+    const data = req.body;
+
     try {
-      const { id, attrs } = req.body;
-      if (!id || !attrs) return res.sendStatus(400);
-      await EntityDAO.updateOneById(id, attrs);
-      return res.sendStatus(200);
+      const result = await EntityDAO.updateAttribute(entityId, attribute, data);
+      return res.json(result);
     } catch (error) {
       console.log(error);
       return res.sendStatus(500);
     }
   }
 
-  // delete
-  static async delete(req, res) {
+  // update multiple attributes
+  static async updateAttributes(req, res) {
+    const { entityId } = req.params;
+    const attributes = req.body;
+
     try {
-      const { id, ids, parentId, ancestorId, ...queries } = req.query;
-
-      if (!(id || ids || parentId || ancestorId)) return res.sendStatus(400);
-
-      for (const key in queries) {
-        if (queries[key] === "true") queries[key] = true;
-        else if (queries[key] === "false") queries[key] = false;
-        else if (queries[key] === "null") queries[key] = null;
-      }
-
-      if (id) await EntityDAO.deleteById(id);
-      else await EntityDAO.deleteMany({ ids, parentId, ancestorId, queries });
-      return res.sendStatus(200);
+      const result = await EntityDAO.updateAttributes(entityId, attributes);
+      return res.json(result);
     } catch (error) {
       console.log(error);
       return res.sendStatus(500);
     }
   }
+
+  // batch update attributes of multiple data entities
+  // static async batchUpsert(req, res) {}
+
+  // batch replace entity data
+  static async batchUpdate() {}
+
+  // delete an entity
+  static async deleteEntity(req, res) {
+    const { entityId } = req.params;
+
+    try {
+      const { ok } = await EntityDAO.deleteEntity(entityId);
+
+      if (ok) return res.sendStatus(204);
+      else return res.sendStatus(404);
+    } catch (error) {
+      console.log(error);
+      return res.sendStatus(500);
+    }
+  }
+
+  // delete an attribute
+  static async deleteAttribute(req, res) {
+    const { entityId, attribute } = req.params;
+
+    try {
+      const { ok } = await EntityDAO.deleteAttribute(entityId, attribute);
+
+      if (ok) return res.sendStatus(204);
+      else return res.sendStatus(404);
+    } catch (error) {
+      console.log(error);
+      return res.sendStatus(500);
+    }
+  }
+
+  // batch delete multiple entities
+  static async batchDelete(req, res) {}
+
+  // batch delete multiple attributes from an entity
+  // static async updateAttributes(req, res) {}
 
   static async getRecord(req, res) {
     try {
-      const { id, attrs, date, from, to, interval, filter } = req.query;
+      const { id, q, attrs, options } = req.query;
       if (!id) return res.sendStatus(400);
 
-      const options = { date, from, to, interval, filter };
-      const result = await EntityDAO.getRecordById({ id, attrs, options });
+      const _q = JSON.parse(q);
+
+      let result = id
+        ? await EntityDAO.getRecordById({ id, attrs, options })
+        : await EntityDAO.getRecord({ q: _q, attrs, options });
       return res.json(result);
     } catch (error) {
       console.log(error);
-      return res.sendStatus(500);
+      return res.status(400).send(error.message);
     }
   }
 }

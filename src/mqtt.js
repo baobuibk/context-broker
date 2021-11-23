@@ -1,10 +1,12 @@
 const mqtt = require("mqtt");
 
 const MQTT_BROKER_URL = process.env.MQTT_BROKER_URL;
-let client = mqtt.connect(MQTT_BROKER_URL);
+let client = mqtt.connect(MQTT_BROKER_URL, {
+  reconnectPeriod: 0,
+});
 
 client.on("error", (error) => {
-  console.log(error);
+  console.log("mqtt client error:", error.message);
 });
 
 client.on("connect", () => {

@@ -19,66 +19,36 @@ class EntityDAO {
     if (!Entity) Entity = db.collection(collName);
   }
 
-  static async add({ attrs, parentId }) {
-    const parentEntity = parentId
-      ? await Entity.findOne(
-          { _id: ObjectId(parentId) },
-          { projection: { path: 1 } }
-        )
-      : null;
-    const path = parentEntity
-      ? parentEntity.path
-        ? parentEntity.path + "," + parentId
-        : parentId
-      : "";
+  static async createEntity() {}
+  static async addAttribute() {}
+  static async listEntities() {}
+  static async retrieveEntity() {}
+  static async updateAttribute() {}
+  static async updateAttributes() {}
+  static async deleteEntity() {}
+  static async deleteAttribute() {}
 
-    let newEntity = {
-      path,
-      parentId: parentId ? ObjectId(parentId) : null,
-      attrs: {},
-    };
+  static async add(entity) {
+    let newEntity = {};
 
-    for (const [attrName, attr] of Object.entries(attrs)) {
-      if (typeof attr === "object" && !Array.isArray(attr) && attr !== null) {
-        if (attr.type === "alias") {
-          newEntity.attrs[attrName] = {
-            type: attr.type,
-            target: { attr: attr.target.attr },
-          };
-        } else if (attr.type === "link") {
-          newEntity.attrs[attrName] = {
-            type: attr.type,
-            target: {
-              entityId: ObjectId(attr.target.entityId),
-              attr: attr.target.attr,
-            },
-          };
-        } else if (attr.type === "number") {
-          newEntity.attrs[attrName] = {
-            type: attr.type,
-            value: attr.value,
-            ...attr,
-          };
-        } else if (attr.type === "string") {
-          newEntity.attrs[attrName] = {
-            type: attr.type,
-            value: attr.value,
-            ...attr,
-          };
-        } else if (attr.type === "boolean") {
-          newEntity.attrs[attrName] = {
-            type: attr.type,
-            value: attr.value,
-            ...attr,
-          };
-        } else throw new Error("wrong attr format");
-      } else if (
-        typeof attr === "number" ||
-        typeof attr === "boolean" ||
-        typeof attr === "string"
+    for (const [attrName, attrData] of Object.entries(entity)) {
+      if (
+        Array.isArray(attrData) ||
+        typeof attrData === "number" ||
+        typeof attrData === "boolean" ||
+        typeof attrData === "string"
       ) {
-        newEntity.attrs[attrName] = { type: typeof attr, value: attr };
-      } else throw new Error("wrong attr format");
+        newEntity[attrName] = { type: "property", value: attrData };
+      } else if (typeof attrData === "object" && attrData !== null) {
+        const { type, target, value, ...metaData } = attrData;
+        if (type === "alias" || type === "link") {
+          newEntity[attrName] = { type, target };
+        } else {
+          newEntity[attrName] = { type: "property", value, ...metaData };
+        }
+      } else {
+        throw new Error("entity add error");
+      }
     }
 
     const { insertedId } = await Entity.insertOne(newEntity);
@@ -86,59 +56,69 @@ class EntityDAO {
   }
 
   // getById
-  static async getById(id, attrs) {
-    const query = { _id: ObjectId(id) };
-    const options = { projection: { attrs: 1 } };
-    const entity = await Entity.findOne(query, options);
-    if (!entity) return null;
-
-    return solveEntityAttrs(entity, attrs);
+  static async getById({ id, attrs, options }) {
+    const entity = await Entity.findOne({ _id: ObjectId(id) });
+    return entity ? await solveEntity({ entity, attrs, options }) : null;
   }
 
   // getMany
-  static async getMany({ ids, parentId, ancestorId, attrs, queries }) {
-    let queryObj = {};
-    for (const key in queries) {
-      queryObj[`attrs.${key}.value`] = queries[key];
+  static async get({ q, attrs, options }) {
+    let _query = {};
+    for (const [attrName, attrValue] of Object.entries(q)) {
+      _query[attrName + ".value"] = attrValue;
     }
-    const query = {
-      ...(ids && { _id: { $in: ObjectIdsArr(ids) } }),
-      ...(parentId && { parentId: ObjectId(parentId) }),
-      ...(ancestorId && { path: new RegExp(ancestorId) }),
-      //  path = new RegExp(parent + "$");
-      ...queryObj,
-    };
 
-    const options = { projection: { attrs: 1 } };
-    const entitiesArr = await Entity.find(query, options).toArray();
-
+    const entities = await Entity.find(_query).toArray();
     return await Promise.all(
-      entitiesArr.map(async (entity) => solveEntityAttrs(entity, attrs))
+      entities.map(async (entity) => solveEntity({ entity, attrs, options }))
     );
   }
 
   // updateOne
-  static async updateOneById(id, attrs) {
-    const filter = { ...(id && { _id: ObjectId(id) }) };
-
+  static async updateById({ id, updates, options, timestamp }) {
     let setObj = {};
-    for (const attr in attrs) {
-      setObj["attrs." + attr + ".value"] = attrs[attr];
+    if (options === "value") {
+      for (const attr in updates) {
+        setObj[attr + ".value"] = updates[attr];
+      }
+    } else if (options === "attr") {
+      for (const [attrName, attrData] of Object.entries(updates)) {
+        if (typeof attrData === "object" && attrData !== null) {
+          const { value, ...valid } = attrData;
+
+          for (const [metaKey, metaValue] of Object.entries(valid)) {
+            setObj[attrName + "." + metaKey] = metaValue;
+          }
+        } else throw new Error("wrong options or updates");
+      }
+    } else throw new Error("wrong options format");
+
+    console.log(setObj);
+
+    let result = await Entity.findOneAndUpdate(
+      { _id: ObjectId(id) },
+      { $set: setObj }
+    );
+
+    if (!result.value) throw new Error("entity not found");
+
+    console.log(result);
+
+    if (options === "value") {
+      redisClient.publish(
+        "context-broker." + id,
+        JSON.stringify({ updates, ...(timestamp && { timestamp }) })
+      );
     }
-    const update = { $set: setObj };
-
-    let projectionObj = {};
-    const options = { projection: projectionObj, returnOriginal: false };
-    await Entity.findOneAndUpdate(filter, update, options);
-
-    redisClient.publish("context-broker." + id, JSON.stringify(attrs));
   }
 
-  static async updateOne({ ids, parentId, ancestorId, attrs, queries }) {
+  static async update({ q: _q, updates, options, timestamp }) {
     let queryObj = {};
+
     for (const key in queries) {
       queryObj[`attrs.${key}.value`] = queries[key];
     }
+
     let filter = {
       ...(ids && { _id: { $in: ObjectIdsArr(ids) } }),
       ...(parentId && { parentId: ObjectId(parentId) }),
@@ -204,39 +184,48 @@ function ObjectIdsArr(ids) {
   return idsArr.map((id) => ObjectId(id));
 }
 
-async function solveAttr(attrsObj, key) {
-  const attr = attrsObj[key];
-  if (attr) {
-    const type = attr.type;
-    switch (type) {
-      case "alias":
-        return solveAttr(attrsObj, attr.target.attr);
-      case "link":
-        const id = attr.target.entityId;
-        const targetAttr = attr.target.attr;
-        const result = await EntityDAO.getById(id, targetAttr);
-        return result[targetAttr];
+async function solveEntity({ entity, attrs, options }) {
+  let { _id, ..._entity } = entity;
+  let result = { id: _id };
 
-      default:
-        return attr.value;
-    }
-  } else return null;
+  let attrNameArr = attrs
+    ? Array.isArray(attrs)
+      ? attrs
+      : attrs.split(",")
+    : Object.keys(_entity);
+
+  for (const attrName of attrNameArr) {
+    result[attrName] = await solveAttr(_entity, attrName, options);
+  }
+
+  return result;
 }
 
-async function solveEntityAttrs(entity, attrs) {
-  const attrsObj = entity.attrs;
-  let result = { id: entity._id };
+async function solveAttr(entity, attrName, options) {
+  const attrData = entity[attrName];
+  if (attrData) {
+    if (!options) {
+      return attrData;
+    }
 
-  if (attrs) {
-    const attrsArr = Array.isArray(attrs) ? attrs : attrs.split(",");
-    for (const key of attrsArr) {
-      result[key] = await solveAttr(attrsObj, key);
+    if (options === "keyValue") {
+      const type = attrData.type;
+      if (type === "alias") {
+        return solveAttr(entity, attrData.target, options);
+      } else if (type === "link") {
+        let [entityId, attr] = attrData.target.split(".");
+        let targetEntity = await EntityDAO.getById({
+          id: entityId,
+          options: "keyValue",
+        });
+
+        console.log("target", targetEntity);
+        return targetEntity ? targetEntity[attr] : null;
+      } else if (type === "property") {
+        return attrData.value;
+      } else return null;
     }
-  } else
-    for (const key in attrsObj) {
-      result[key] = await solveAttr(attrsObj, key);
-    }
-  return result;
+  } else return null;
 }
 
 const recordEngineUrl = process.env.RECORD_ENGINE_URL;
