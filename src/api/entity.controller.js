@@ -6,10 +6,10 @@ class EntityController {
     const { id, type, ...attributes } = req.body;
 
     try {
-      const { ok } = await EntityDAO.createEntity(id, type, attributes);
+      const { ok, errors } = await EntityDAO.createEntity(id, type, attributes);
 
       if (ok) return res.sendStatus(201);
-      else return res.sendStatus(409);
+      else return res.status(409).json({ errors });
     } catch (error) {
       console.log(error);
       return res.sendStatus(500);
@@ -22,10 +22,10 @@ class EntityController {
     const attributes = req.body;
 
     try {
-      const { ok } = await EntityDAO.addAttribute(entityId, attributes);
+      const { ok, errors } = await EntityDAO.addAttribute(entityId, attributes);
 
       if (ok) return res.sendStatus(201);
-      else return res.sendStatus(409);
+      else return res.status(409).json({ errors });
     } catch (error) {
       console.log(error);
       return res.sendStatus(500);
@@ -40,15 +40,15 @@ class EntityController {
 
   // list entities
   static async listEntities(req, res) {
-    const { type, options, attrs, id, q } = req.query;
+    const { id, type, attrs, options, q } = req.query;
 
     try {
       const result = await EntityDAO.listEntities({
-        type,
-        options,
-        attrs,
-        id,
-        q,
+        ...(id && { id }),
+        ...(type && { type }),
+        ...(attrs && { attrs }),
+        ...(options && { options }),
+        ...(q && { q }),
       });
 
       return res.json(result);
@@ -61,16 +61,16 @@ class EntityController {
   // retrieve the details of a single entity
   static async retrieveEntity(req, res) {
     const { entityId } = req.params;
-    const { type, options, attrs, q } = req.query;
+    const { type, attrs, options, q } = req.query;
 
     // options=sysAttrs|keyValues
 
     try {
       const result = await EntityDAO.retrieveEntity(entityId, {
-        type,
-        options,
-        attrs,
-        q,
+        ...(type && { type }),
+        ...(attrs && { attrs }),
+        ...(options && { options }),
+        ...(q && { q }),
       });
 
       return res.json(result);
@@ -82,11 +82,18 @@ class EntityController {
 
   // update an attribute
   static async updateAttribute(req, res) {
+    const { timestamp } = req.query;
     const { entityId, attribute } = req.params;
-    const data = req.body;
+    const attributeData = req.body;
 
     try {
-      const result = await EntityDAO.updateAttribute(entityId, attribute, data);
+      const result = await EntityDAO.updateAttributes(
+        entityId,
+        {
+          [attribute]: attributeData,
+        },
+        { timestamp }
+      );
       return res.json(result);
     } catch (error) {
       console.log(error);
@@ -96,12 +103,17 @@ class EntityController {
 
   // update multiple attributes
   static async updateAttributes(req, res) {
+    const { timestamp } = req.query;
     const { entityId } = req.params;
     const attributes = req.body;
 
     try {
-      const result = await EntityDAO.updateAttributes(entityId, attributes);
-      return res.json(result);
+      const result = await EntityDAO.updateAttributes(entityId, attributes, {
+        timestamp,
+      });
+
+      let now = new Date();
+      return res.send({ timeis: now, ...result });
     } catch (error) {
       console.log(error);
       return res.sendStatus(500);
