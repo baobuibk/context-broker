@@ -1,4 +1,5 @@
 const { ObjectId } = require("mongodb");
+const debug = require("debug")("EntityDAO");
 const redisClient = require("../redis");
 const Schema = require("./entity.schema");
 const axios = require("axios");
@@ -20,200 +21,27 @@ class EntityDAO {
     if (!Entity) Entity = db.collection(collName);
 
     const result = await Entity.createIndex("id", { unique: true });
-    console.log(result);
+    debug(result);
   }
 
-  static async createEntity(entityId, entityType, attributes) {
-    let errors = {};
-
-    if (!isValidString(entityId)) errors.id = "error";
-    if (!isValidString(entityType)) errors.type = "error";
-    let { id, type, ...validAttributes } = attributes;
-    if (id || type) errors.attributes = "error";
-    if (!_.isEmpty(errors)) return { errors };
-
-    let newEntity = { id: entityId, type: entityType };
-
-    for (const [attributeName, attributeData] of Object.entries(
-      validAttributes
-    )) {
-      if (
-        Array.isArray(attributeData) ||
-        typeof attributeData === "number" ||
-        typeof attributeData === "boolean" ||
-        typeof attributeData === "string"
-      ) {
-        newEntity[attributeName] = { type: "Property", value: attributeData };
-      } else if (isValidObject(attributeData)) {
-        const { type, target, value, ...metadata } = attributeData;
-
-        if (type === "Alias" && isValidString(target?.attr)) {
-          newEntity[attributeName] = {
-            type: "Alias",
-            target: { attr: target.attr },
-            ...metadata,
-          };
-        } else if (
-          type === "Link" &&
-          isValidString(target?.attr) &&
-          isValidString(target?.id)
-        ) {
-          newEntity[attributeName] = {
-            type: "Link",
-            target: { id: target.id, attr: target.attr },
-            ...metadata,
-          };
-        } else if (type === "Property") {
-          newEntity[attributeName] = { type: "Property", value, ...metadata };
-        } else {
-          if (errors.attributes) errors.attributes[attributeName] = "error";
-          else errors.attributes = { [attributeName]: "error" };
-        }
-      } else {
-        if (errors.attributes) errors.attributes[attributeName] = "error";
-        else errors.attributes = { [attributeName]: "error" };
-      }
-
-      if (!_.isEmpty(errors)) return { errors };
-    }
-
-    await Entity.insertOne(newEntity);
-    return { ok: 1 };
+  static async addMany(entities) {
+    if (!Array.isArray(entities)) throw new Error("entities");
+    let newEntities = entities.map((entity) => makeNewEntity(entity));
+    let result = await Entity.insertMany(newEntities);
+    debug(result);
   }
 
-  static async addAttribute(entityId, attributes) {
-    let errors = {};
-
-    if (!isValidString(entityId)) errors.entityId = "error";
-    if (!isValidObject(attributes) || _.isEmpty(attributes))
-      errors.attributes = "error";
-    let { id, type, ...validAttributes } = attributes;
-    if (id || type) errors.attributes = "error";
-    if (!_.isEmpty(errors)) return { errors };
-
-    let setObj = {};
-
-    for (const [attributeName, attributeData] of Object.entries(
-      validAttributes
-    )) {
-      if (
-        Array.isArray(attributeData) ||
-        typeof attributeData === "number" ||
-        typeof attributeData === "boolean" ||
-        typeof attributeData === "string"
-      ) {
-        setObj[attributeName] = { type: "Property", value: attributeData };
-      } else if (isValidObject(attributeData)) {
-        const { type, target, value, ...metadata } = attributeData;
-
-        if (type === "Alias" && isValidString(target?.attr)) {
-          setObj[attributeName] = {
-            type: "Alias",
-            target: { attr: target.attr },
-            ...metadata,
-          };
-        } else if (
-          type === "Link" &&
-          isValidString(target?.attr) &&
-          isValidString(target?.id)
-        ) {
-          setObj[attributeName] = {
-            type: "Link",
-            target: { id: target.id, attr: target.attr },
-            ...metadata,
-          };
-        } else if (type === "Property") {
-          setObj[attributeName] = { type: "Property", value, ...metadata };
-        } else {
-          if (errors.attributes) errors.attributes[attributeName] = "error";
-          else errors.attributes = { [attributeName]: "error" };
-        }
-      } else {
-        if (errors.attributes) errors.attributes[attributeName] = "error";
-        else errors.attributes = { [attributeName]: "error" };
-      }
-
-      if (!_.isEmpty(errors)) return { errors };
-    }
-
-    console.log("setObj: ", setObj);
-
-    let result = await Entity.findOneAndUpdate(
-      { id: entityId },
-      { $set: setObj }
-    );
-
-    console.log("result:", result);
-
-    if (result.value) return { ok: 1 };
-
-    throw new Error("dont know");
-
-    // redisClient.publish(
-    //   "context-broker." + id,
-    //   JSON.stringify({ updates, ...(timestamp && { timestamp }) })
-    // );
+  static async addOne(entity) {
+    let newEntity = makeNewEntity(entity);
+    let result = await Entity.insertOne(newEntity);
+    debug(result);
   }
 
-  static async batchUpsert(entities) {
-    let newEntities = entities.map((entity) => {
-      let { id, type, ...attributes } = entity;
-
-      if (!isValidString(id)) throw new Error("id");
-      if (!isValidString(type)) throw new Error("type");
-
-      let newEntity = { id, type };
-
-      for (const [attributeName, attributeData] of Object.entries(attributes)) {
-        if (
-          Array.isArray(attributeData) ||
-          typeof attributeData === "number" ||
-          typeof attributeData === "boolean" ||
-          typeof attributeData === "string"
-        ) {
-          newEntity[attributeName] = { type: "Property", value: attributeData };
-        } else if (isValidObject(attributeData)) {
-          const { type, target, value, ...metadata } = attributeData;
-
-          if (type === "Alias" && isValidString(target?.attr)) {
-            newEntity[attributeName] = {
-              type: "Alias",
-              target: { attr: target.attr },
-              ...metadata,
-            };
-          } else if (
-            type === "Link" &&
-            isValidString(target?.attr) &&
-            isValidString(target?.id)
-          ) {
-            newEntity[attributeName] = {
-              type: "Link",
-              target: { id: target.id, attr: target.attr },
-              ...metadata,
-            };
-          } else if (type === "Property") {
-            newEntity[attributeName] = { type: "Property", value, ...metadata };
-          } else {
-            throw new Error("attribute");
-          }
-        } else {
-          throw new Error("dont know");
-        }
-
-        return newEntity;
-      }
-    });
-
-    const result = await Entity.insertMany(entities);
-    console.log(result);
-    return { ok: 1, n: result.insertedCount };
-  }
-
-  static async listEntities({ id, type, attrs, options, q }) {
+  static async getMany({ ids, type, attrs, options, q }) {
     let query = parseQuery(q);
 
     let filter = {
-      ...(id && { id: { $in: solveList(id) } }),
+      ...(ids && { ids: { $in: solveList(ids) } }),
       ...(type && { type: { $in: solveList(type) } }),
       ...query,
     };
@@ -226,11 +54,11 @@ class EntityDAO {
     );
   }
 
-  static async retrieveEntity(entityId, { type, attrs, options, q }) {
+  static async getOne(id, { type, attrs, options, q }) {
     let query = parseQuery(q);
 
     let filter = {
-      ...(entityId && { id: entityId }),
+      ...(id && { id }),
       ...(type && { type: { $in: solveList(type) } }),
       ...query,
     };
@@ -239,51 +67,49 @@ class EntityDAO {
     return entity ? await solveEntity(entity, { attrs, options }) : null;
   }
 
-  static async updateAttributes(entityId, attributes, options) {
-    let { timestamp } = options;
-    let errors = {};
+  static async updateBatch(updates, { timestamp }) {
+    updates.map;
+  }
 
-    if (!isValidString(entityId)) errors.entityId = "error";
-    if (!isValidObject(attributes) || _.isEmpty(attributes))
-      errors.attributes = "error";
-    let { id, type, ...validAttributes } = attributes;
-    if (id || type) errors.attributes = "error";
-    if (!_.isEmpty(errors)) return { errors };
+  static async updateMany({ type, q }, update, { timestamp }) {
+    return false;
+  }
 
-    let setObj = {};
+  static async updateOne(id, attributes, { timestamp }) {
+    if (!isValidString(id)) throw new Error("id");
+    //
     let notifyObject = { timestamp, attributes: {} };
-
-    for (const [attributeName, attributeData] of Object.entries(
-      validAttributes
-    )) {
+    //
+    let setObj = {};
+    for (const [attr, attrData] of Object.entries(attributes)) {
       if (
-        Array.isArray(attributeData) ||
-        typeof attributeData === "number" ||
-        typeof attributeData === "boolean" ||
-        typeof attributeData === "string"
+        Array.isArray(attrData) ||
+        typeof attrData === "number" ||
+        typeof attrData === "boolean" ||
+        typeof attrData === "string"
       ) {
-        setObj[attributeName + ".type"] = "Property";
-        setObj[attributeName + ".value"] = attributeData;
+        setObj[attr + ".type"] = "Property";
+        setObj[attr + ".value"] = attrData;
 
         //
-        notifyObject.attributes[attributeName] = attributeData;
+        notifyObject.attributes[attr] = attrData;
         //
-      } else if (isValidObject(attributeData)) {
-        const { type, target, value, ...metadata } = attributeData;
+      } else if (isValidObject(attrData)) {
+        const { type, target, value, ...metadata } = attrData;
 
         if (type === "Alias" && isValidString(target?.attr)) {
-          setObj[attributeName + ".type"] = "Alias";
-          setObj[attributeName + ".target"] = { attr: target.attr };
+          setObj[attr + ".type"] = "Alias";
+          setObj[attr + ".target"] = { attr: target.attr };
           for (const [meta, data] of Object.entries(metadata)) {
-            setObj[attributeName + "." + meta] = data;
+            setObj[attr + "." + meta] = data;
           }
         } else if (
           type === "Link" &&
           isValidString(target?.attr) &&
           isValidString(target?.id)
         ) {
-          setObj[attributeName + ".type"] = "Link";
-          setObj[attributeName + ".target"] = {
+          setObj[attr + ".type"] = "Link";
+          setObj[attr + ".target"] = {
             id: target.id,
             attr: target.attr,
           };
@@ -291,57 +117,30 @@ class EntityDAO {
             setObj[attr + "." + meta] = data;
           }
         } else if (type === "Property") {
-          setObj[attributeName + ".type"] = "Property";
-          setObj[attributeName + ".value"] = value;
+          setObj[attr + ".type"] = "Property";
+          setObj[attr + ".value"] = value;
           for (const [meta, data] of Object.entries(metadata)) {
             setObj[attr + "." + meta] = data;
           }
 
           //
-          notifyObject.attributes[attributeName] = value;
+          notifyObject.attributes[attr] = value;
           //
         } else {
-          if (errors.attributes) errors.attributes[attributeName] = "error";
-          else errors.attributes = { [attributeName]: "error" };
+          throw new Error("attributes");
         }
       } else {
-        if (errors.attributes) errors.attributes[attributeName] = "error";
-        else errors.attributes = { [attributeName]: "error" };
+        throw new Error("attributes");
       }
-
-      if (!_.isEmpty(errors)) return { errors };
     }
 
-    let result = await Entity.findOneAndUpdate(
-      { id: entityId },
-      { $set: setObj }
-    );
+    let result = await Entity.findOneAndUpdate({ id }, { $set: setObj });
 
-    if (!result.ok) return { errors: "not found" };
-    if (!result.value) return { errors: "not found" };
+    if (!result.ok) throw new Error("mongodb");
+    if (!result.value) throw new Error("id");
 
-    redisClient.publish(
-      "context-broker." + entityId,
-      JSON.stringify(notifyObject)
-    );
-
-    return { ok: 1 };
+    redisClient.publish("context-broker." + id, JSON.stringify(notifyObject));
   }
-  static async deleteEntity(entityId) {
-    await Entity.deleteOne({ id: entityId });
-    return { ok: 1 };
-  }
-  static async deleteAttribute(entityId, attribute) {
-    console.log("got her");
-    await Entity.findOneAndUpdate(
-      { id: entityId },
-      { $unset: { [attribute]: "" } }
-    );
-    return { ok: 1 };
-  }
-
-  // deleteById
-  static async deleteById(id) {}
 
   // deleteMany
   static async deleteMany({ ids, parentId, ancestorId, queries }) {
@@ -357,6 +156,8 @@ class EntityDAO {
     };
     await Entity.deleteMany(filter);
   }
+
+  static async deleteOne(id) {}
 
   static async getRecordById(props) {
     const { id, attrs, options } = props;
@@ -391,16 +192,16 @@ async function solveEntity(entity, { attrs, options }) {
 }
 
 async function solveAttr(entity, attr, options) {
-  const attributeData = entity[attr];
+  const attrData = entity[attr];
 
-  if (attributeData) {
+  if (attrData) {
     if (!options) {
-      return attributeData;
+      return attrData;
     }
 
     if (options === "keyValues") {
-      const type = attributeData.type;
-      const target = attributeData.target;
+      const type = attrData.type;
+      const target = attrData.target;
       if (type === "Alias") {
         return solveAttr(entity, target.attr, options);
       } else if (type === "Link") {
@@ -410,7 +211,7 @@ async function solveAttr(entity, attr, options) {
         });
         return targetEntity ? targetEntity[attr] : null;
       } else if (type === "Property") {
-        return attributeData.value;
+        return attrData.value;
       } else return null;
     }
   } else return null;
@@ -499,6 +300,57 @@ function solveList(list) {
       ? list.split(",")
       : []
     : [];
+}
+
+function makeNewEntity(entity) {
+  const { id, type, ...attributes } = entity;
+  if (!isValidString(id)) throw new Error("id");
+  if (!isValidString(type)) throw new Error("type");
+
+  let newEntity = { id, type };
+
+  for (const [attr, attrData] of Object.entries(attributes)) {
+    if (
+      Array.isArray(attrData) ||
+      typeof attrData === "number" ||
+      typeof attrData === "boolean" ||
+      typeof attrData === "string"
+    ) {
+      newEntity[attr] = { type: "Property", value: attrData };
+    } else if (isValidObject(attrData)) {
+      const { type, target, value, ...metadata } = attrData;
+
+      if (type === "Alias" && isValidString(target?.attr)) {
+        newEntity[attr] = {
+          type: "Alias",
+          target: { attr: target.attr },
+          ...metadata,
+        };
+      } else if (
+        type === "Link" &&
+        isValidString(target?.attr) &&
+        isValidString(target?.id)
+      ) {
+        newEntity[attr] = {
+          type: "Link",
+          target: { id: target.id, attr: target.attr },
+          ...metadata,
+        };
+      } else if (type === "Property") {
+        newEntity[attr] = {
+          type: "Property",
+          value,
+          ...metadata,
+        };
+      } else {
+        throw new Error("attributes");
+      }
+    } else {
+      throw new Error("attributes");
+    }
+  }
+
+  return newEntity;
 }
 
 module.exports = EntityDAO;

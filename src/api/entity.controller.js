@@ -1,144 +1,134 @@
 const EntityDAO = require("./entity.DAO");
+const debug = require("debug")("EntityController");
 
 class EntityController {
-  // create new entities
-  static async createEntity(req, res) {
-    const { id, type, ...attributes } = req.body;
+  // addEntity
+  static async addEntity(req, res) {
+    // req.query, req.body
+    const data = req.body;
 
     try {
-      const { ok, errors } = await EntityDAO.createEntity(id, type, attributes);
+      let result;
 
-      if (ok) return res.sendStatus(201);
-      else return res.status(409).json({ errors });
+      if (Array.isArray(data)) result = await EntityDAO.addMany(data);
+      else if (typeof data === "object") result = await EntityDAO.addOne(data);
+      else return res.sendStatus(400);
+
+      debug(result);
+
+      return res.json(result);
     } catch (error) {
-      console.log(error);
-      return res.sendStatus(500);
-    }
-  }
-
-  // add new attributes
-  static async addAttribute(req, res) {
-    const { entityId } = req.params;
-    const attributes = req.body;
-
-    try {
-      const { ok, errors } = await EntityDAO.addAttribute(entityId, attributes);
-
-      if (ok) return res.sendStatus(201);
-      else return res.status(409).json({ errors });
-    } catch (error) {
-      console.log(error);
-      return res.sendStatus(500);
-    }
-  }
-
-  // batch create new data entities or attributes
-  static async batchCreate() {}
-
-  // batch create/overwrite new data entities
-  static async batchUpsert(req, res) {
-    const entities = req.body;
-
-    try {
-      const { ok, n } = await EntityDAO.batchUpsert(entities);
-
-      if (ok) return res.status(201).send({ ok, n });
-    } catch (error) {
-      console.log(error);
-      return res.status(400).send(error.message);
+      debug(error);
+      return res.sendStatus(400);
     }
   }
 
   // list entities
-  static async listEntities(req, res) {
-    const { id, type, attrs, options, q } = req.query;
+  static async getManyEntities(req, res) {
+    // req.query
+    const { ids, type, attrs, options, q } = req.query;
 
     try {
-      const result = await EntityDAO.listEntities({
-        ...(id && { id }),
+      let result;
+
+      result = await EntityDAO.getMany({
+        ...(ids && { ids }),
         ...(type && { type }),
         ...(attrs && { attrs }),
         ...(options && { options }),
         ...(q && { q }),
       });
 
+      debug(result);
+
       return res.json(result);
     } catch (error) {
-      console.log(error);
+      debug(error);
       return res.sendStatus(500);
     }
   }
 
   // retrieve the details of a single entity
-  static async retrieveEntity(req, res) {
+  static async getOneEntity(req, res) {
+    // req.query, req.params
     const { entityId } = req.params;
     const { type, attrs, options, q } = req.query;
 
-    // options=sysAttrs|keyValues
-
     try {
-      const result = await EntityDAO.retrieveEntity(entityId, {
+      let result;
+
+      result = await EntityDAO.getOne(entityId, {
         ...(type && { type }),
         ...(attrs && { attrs }),
         ...(options && { options }),
         ...(q && { q }),
       });
 
+      debug(result);
+
       return res.json(result);
     } catch (error) {
       console.log(error);
+      return res.sendStatus(500);
+    }
+  }
+
+  static async updateEntityBatch(req, res) {
+    // req.query, req.body
+
+    const data = req.body;
+
+    try {
+      let result = await EntityDAO.updateBatch(data, { timestamp });
+      debug(result);
+      return res.json(result);
+    } catch (error) {
+      debug(error);
+      return res.sendStatus(500);
+    }
+  }
+
+  static async updateManyEntities(req, res) {
+    // req.query, req.body
+
+    const { type, q, timestamp } = req.query;
+    const data = req.body;
+
+    try {
+      let result = await EntityDAO.updateMany({ type, q }, data, { timestamp });
+      debug(result);
+      return res.json(result);
+    } catch (error) {
+      debug(error);
       return res.sendStatus(500);
     }
   }
 
   // update an attribute
-  static async updateAttribute(req, res) {
-    const { timestamp } = req.query;
-    const { entityId, attribute } = req.params;
-    const attributeData = req.body;
-
-    try {
-      const result = await EntityDAO.updateAttributes(
-        entityId,
-        {
-          [attribute]: attributeData,
-        },
-        { timestamp }
-      );
-      return res.json(result);
-    } catch (error) {
-      console.log(error);
-      return res.sendStatus(500);
-    }
-  }
-
-  // update multiple attributes
-  static async updateAttributes(req, res) {
+  static async updateOneEntity(req, res) {
+    // req.query, req.body, req.params
     const { timestamp } = req.query;
     const { entityId } = req.params;
-    const attributes = req.body;
+    const data = req.body;
 
     try {
-      const result = await EntityDAO.updateAttributes(entityId, attributes, {
-        timestamp,
-      });
-
-      let now = new Date();
-      return res.send({ timeis: now, ...result });
+      let result = await EntityDAO.updateOne(entityId, data, { timestamp });
+      debug(result);
+      return res.json(result);
     } catch (error) {
-      console.log(error);
+      debug(error);
       return res.sendStatus(500);
     }
   }
 
-  // batch update attributes of multiple data entities
-  // static async batchUpsert(req, res) {}
-
-  // batch replace entity data
-  static async batchUpdate() {}
+  static async deleteManyEntities(req, res) {
+    // req.query
+    res.sendStatus(500);
+  }
 
   // delete an entity
-  static async deleteEntity(req, res) {
+  static async deleteOneEntity(req, res) {
+    // req.query, req.params
     const { entityId } = req.params;
 
     try {
@@ -152,28 +142,8 @@ class EntityController {
     }
   }
 
-  // delete an attribute
-  static async deleteAttribute(req, res) {
-    const { entityId, attribute } = req.params;
-
-    try {
-      const { ok } = await EntityDAO.deleteAttribute(entityId, attribute);
-
-      if (ok) return res.sendStatus(204);
-      else return res.sendStatus(404);
-    } catch (error) {
-      console.log(error);
-      return res.sendStatus(500);
-    }
-  }
-
-  // batch delete multiple entities
-  static async batchDelete(req, res) {}
-
-  // batch delete multiple attributes from an entity
-  // static async updateAttributes(req, res) {}
-
-  static async getRecord(req, res) {
+  static async getOneEntityRecord(req, res) {
+    // req.query, req.params
     try {
       const { id, q, attrs, options } = req.query;
       if (!id) return res.sendStatus(400);
