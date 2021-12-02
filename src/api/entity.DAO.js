@@ -41,7 +41,7 @@ class EntityDAO {
     let query = parseQuery(q);
 
     let filter = {
-      ...(ids && { ids: { $in: solveList(ids) } }),
+      ...(ids && { _id: { $in: solveList(ids).map((id) => ObjectId(id)) } }),
       ...(type && { type: { $in: solveList(type) } }),
       ...query,
     };
@@ -54,11 +54,11 @@ class EntityDAO {
     );
   }
 
-  static async getOne(id, { type, attrs, options, q }) {
+  static async getOne({ id, type, attrs, options, q }) {
     let query = parseQuery(q);
 
     let filter = {
-      ...(id && { id }),
+      ...(id && { _id: ObjectId(id) }),
       ...(type && { type: { $in: solveList(type) } }),
       ...query,
     };
@@ -67,15 +67,15 @@ class EntityDAO {
     return entity ? await solveEntity(entity, { attrs, options }) : null;
   }
 
-  static async updateBatch(updates, { timestamp }) {
-    updates.map;
+  static async updateBatch({ updates, timestamp }) {
+    await Promise.all(updates.map());
   }
 
-  static async updateMany({ type, q }, update, { timestamp }) {
+  static async updateMany({ type, q, attributes, timestamp }) {
     return false;
   }
 
-  static async updateOne(id, attributes, { timestamp }) {
+  static async updateOne({ id, attributes, timestamp }) {
     if (!isValidString(id)) throw new Error("id");
     //
     let notifyObject = { timestamp, attributes: {} };
@@ -303,11 +303,11 @@ function solveList(list) {
 }
 
 function makeNewEntity(entity) {
-  const { id, type, ...attributes } = entity;
-  if (!isValidString(id)) throw new Error("id");
+  const { name, type, ...attributes } = entity;
+  if (!isValidString(name)) throw new Error("name");
   if (!isValidString(type)) throw new Error("type");
 
-  let newEntity = { id, type };
+  let newEntity = { name, type };
 
   for (const [attr, attrData] of Object.entries(attributes)) {
     if (

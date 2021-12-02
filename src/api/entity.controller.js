@@ -31,13 +31,7 @@ class EntityController {
     try {
       let result;
 
-      result = await EntityDAO.getMany({
-        ...(ids && { ids }),
-        ...(type && { type }),
-        ...(attrs && { attrs }),
-        ...(options && { options }),
-        ...(q && { q }),
-      });
+      result = await EntityDAO.getMany({ ids, type, attrs, options, q });
 
       debug(result);
 
@@ -57,11 +51,12 @@ class EntityController {
     try {
       let result;
 
-      result = await EntityDAO.getOne(entityId, {
-        ...(type && { type }),
-        ...(attrs && { attrs }),
-        ...(options && { options }),
-        ...(q && { q }),
+      result = await EntityDAO.getOne({
+        id: entityId,
+        type,
+        attrs,
+        options,
+        q,
       });
 
       debug(result);
@@ -95,7 +90,12 @@ class EntityController {
     const data = req.body;
 
     try {
-      let result = await EntityDAO.updateMany({ type, q }, data, { timestamp });
+      let result = await EntityDAO.updateMany({
+        type,
+        q,
+        attributes: data,
+        timestamp,
+      });
       debug(result);
       return res.json(result);
     } catch (error) {
@@ -112,7 +112,11 @@ class EntityController {
     const data = req.body;
 
     try {
-      let result = await EntityDAO.updateOne(entityId, data, { timestamp });
+      let result = await EntityDAO.updateOne({
+        id: entityId,
+        attributes: data,
+        timestamp,
+      });
       debug(result);
       return res.json(result);
     } catch (error) {
