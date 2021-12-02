@@ -3,10 +3,10 @@ const router = express.Router();
 
 const Provision = require("./provision.controller");
 
-router.get("/begin", Provision.begin);
-router.get("/end", Provision.end);
-router.get("/status", Provision.status);
-router.get("/retrieve", Provision.retrieve);
-router.post("/", Provision.request);
+router.get("/begin/:apikey", Provision.begin);
+router.get("/end/:apikey", Provision.end);
+router.get("/status/apikey", Provision.status);
+router.get("/retrieve/:apikey", Provision.retrieve);
+router.post("/request/:apikey", Provision.request);
 
 module.exports = router;

@@ -6,11 +6,11 @@ let sessions = {};
 
 class ProvisionController {
   static async begin(req, res) {
-    const { gatewayId } = req.query;
-    if (!gatewayId) return res.status(400).send("no gatewayId");
+    const { parentId } = req.params;
+    if (!parentId) return res.status(400).send("no parentId");
 
     redisClient.set(
-      gatewayId,
+      parentId,
       "available",
       "EX",
       PROVISION_TIMEOUT,
@@ -23,10 +23,10 @@ class ProvisionController {
   }
 
   static async end(req, res) {
-    const { gatewayId } = req.query;
-    if (!gatewayId) return res.status(400).send("no gatewayId");
+    const { parentId } = req.params;
+    if (!parentId) return res.status(400).send("no parentId");
 
-    redisClient.exists(gatewayId, (err, reply) => {
+    redisClient.exists(parentId, (err, reply) => {
       if (err) return res.sendStatus(500);
       if (!reply) return res.sendStatus(400);
 
@@ -39,7 +39,7 @@ class ProvisionController {
   }
 
   static async status(req, res) {
-    const { gatewayId } = req.query;
+    const { gatewayId } = req.params;
     if (!gatewayId) return res.status(400).send("no gatewayId");
 
     redisClient.get(gatewayId, (err, reply) => {
@@ -60,7 +60,8 @@ class ProvisionController {
   }
 
   static async request(req, res) {
-    const { devices, gatewayId } = req.body;
+    const { gatewayId } = req.params;
+    const { devices } = req.body;
     if (!gatewayId) return res.status(400).send("no gatewayId");
 
     redisClient.get(gatewayId, async (err, reply) => {
