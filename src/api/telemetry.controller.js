@@ -1,7 +1,7 @@
 const EntityDAO = require("./entity.DAO");
 
 class TelemetryController {
-  static async gatewayRequest(req, res) {
+  static async request(req, res) {
     const { gatewayId, devices } = req.body;
     if (!gatewayId) return res.status(400).send("no gatewayId");
 

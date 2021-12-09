@@ -3,6 +3,6 @@ const router = express.Router();
 
 const TelemetryController = require("./telemetry.controller");
 
-router.post("/gateway", TelemetryController.gatewayRequest);
+router.post("/request", TelemetryController.request);
 
 module.exports = router;
