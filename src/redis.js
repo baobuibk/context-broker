@@ -17,9 +17,9 @@ client.on("error", (error) => {
   console.error("redis client error", error);
 });
 
-client.on("end", (sth) => {
-  console.error("redis client end", sth);
-});
+// client.on("end", (sth) => {
+//   console.log("redis client end", sth);
+// });
 
 client.on("warning", (sth) => {
   console.error("redis client warning", sth);

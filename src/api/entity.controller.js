@@ -3,16 +3,17 @@ const debug = require("debug")("EntityController");
 
 class EntityController {
   static async add(req, res) {
-    const { data } = req.body;
+    const entityData = req.body;
 
     try {
       let result;
-      if (!Array.isArray(data) && typeof data === "object" && data !== null)
-        result = await EntityDAO.addOne(data);
-      else if (Array.isArray(data)) result = await EntityDAO.addMany(data);
+      if (Array.isArray(entityData))
+        result = await EntityDAO.addMany(entityData);
+      else if (typeof entityData === "object" && entityData !== null)
+        result = await EntityDAO.addOne(entityData);
       else return res.sendStatus(400);
-      debug(result);
-      return res.sendStatus(200);
+
+      return res.json(result);
     } catch (error) {
       debug(error.message);
       return res.sendStatus(500);
@@ -23,24 +24,31 @@ class EntityController {
     const { id, ids, type, q, attrs, options } = req.query;
 
     try {
-      let result;
-      if (id) result = await EntityDAO.getById({ id, attrs, options });
-      else result = await EntityDAO.getMany({ ids, type, q, attrs, options });
-      debug(result);
-
-      return res.json({ data: result });
+      if (id) {
+        let result = await EntityDAO.getById({ id, attrs, options });
+        return res.json(result);
+      } else {
+        let result = await EntityDAO.getMany({
+          ids,
+          type,
+          query: q,
+          attrs,
+          options,
+        });
+        return res.json(result);
+      }
     } catch (error) {
       debug(error.message);
       return res.sendStatus(500);
     }
   }
 
-  static async updateValue(req, res) {
+  static async telemetry(req, res) {
     const { id, timestamp } = req.query;
-    const { data } = req.body;
+    const entityData = req.body;
 
     try {
-      await EntityDAO.updateValue({ id, data, timestamp });
+      await EntityDAO.telemetryOne({ id, data: entityData, timestamp });
       return res.sendStatus(200);
     } catch (error) {
       debug(error.message);
@@ -48,12 +56,36 @@ class EntityController {
     }
   }
 
-  static async updateAttribute(req, res) {
-    const { id } = req.query;
-    const { data } = req.body;
+  static async telemetryGateway(req, res) {
+    const { gatewayId, devices, timestamp } = req.body;
 
     try {
-      await EntityDAO.updateAttribute({ id, data });
+      await Promise.all(
+        Object.entries(devices).map(async (device) => {
+          const [device_id, channelData] = device;
+          await EntityDAO.telemetryOne({
+            type: "Device",
+            query: { gatewayId, device_id },
+            data: channelData,
+            timestamp,
+          });
+        })
+      );
+
+      return res.sendStatus(200);
+    } catch (error) {
+      debug(error.message);
+      return res.sendStatus(500);
+    }
+  }
+
+  // updateAttribute & replaceAttribute
+  static async updateAttribute(req, res) {
+    const { id } = req.query;
+    const data = req.body;
+
+    try {
+      await EntityDAO.updateById({ id, data });
       return res.sendStatus(200);
     } catch (error) {
       debug(error.message);
@@ -68,7 +100,7 @@ class EntityController {
     try {
       let result;
       if (id) result = await EntityDAO.deleteById({ id });
-      else result = await EntityDAO.deleteMany({ ids, type, q });
+      else result = await EntityDAO.deleteMany({ ids, type, query });
       debug(result);
       return res.sendStatus(200);
     } catch (error) {
@@ -77,7 +109,7 @@ class EntityController {
     }
   }
 
-  static async getRecord(req, res) {
+  static async timeseries(req, res) {
     const { id, ids, type, q, attrs, options } = req.query;
 
     try {
@@ -87,7 +119,7 @@ class EntityController {
         result = await EntityDAO.getRecordMany({
           ids,
           type,
-          q,
+          query: q,
           attrs,
           options,
         });

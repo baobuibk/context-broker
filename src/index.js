@@ -11,7 +11,7 @@ const expressApp = require("./express");
 async function main() {
   const DB_URI = process.env.DB_URI || "mongodb://localhost:27017";
   await database.connect(DB_URI);
-  const DB_NAME = process.env.DB_NAME;
+  const DB_NAME = process.env.DB_NAME || "monitoring-system";
   await database.init(DB_NAME);
 
   const httpServer = http.createServer(expressApp);

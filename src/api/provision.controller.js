@@ -1,16 +1,18 @@
 const EntityDAO = require("./entity.DAO");
+const debug = require("debug")("ProvisionController");
 const redisClient = require("../redis");
 
 const PROVISION_TIMEOUT = Number(process.env.PROVISION_TIMEOUT) || 120;
-let sessions = {};
 
 class ProvisionController {
   static async begin(req, res) {
-    const { parentId } = req.params;
-    if (!parentId) return res.status(400).send("no parentId");
+    const { gatewayId: paramGatewayId } = req.params;
+    const { gatewayId: queryGatewayId } = req.query;
+    let gatewayId = paramGatewayId || queryGatewayId;
+    if (!gatewayId) return res.status(400).send("no gatewayId");
 
     redisClient.set(
-      parentId,
+      gatewayId,
       "available",
       "EX",
       PROVISION_TIMEOUT,
@@ -23,10 +25,12 @@ class ProvisionController {
   }
 
   static async end(req, res) {
-    const { parentId } = req.params;
-    if (!parentId) return res.status(400).send("no parentId");
+    const { gatewayId: paramGatewayId } = req.params;
+    const { gatewayId: queryGatewayId } = req.query;
+    let gatewayId = paramGatewayId || queryGatewayId;
+    if (!gatewayId) return res.status(400).send("no gatewayId");
 
-    redisClient.exists(parentId, (err, reply) => {
+    redisClient.exists(gatewayId, (err, reply) => {
       if (err) return res.sendStatus(500);
       if (!reply) return res.sendStatus(400);
 
@@ -39,7 +43,9 @@ class ProvisionController {
   }
 
   static async status(req, res) {
-    const { gatewayId } = req.params;
+    const { gatewayId: paramGatewayId } = req.params;
+    const { gatewayId: queryGatewayId } = req.query;
+    let gatewayId = paramGatewayId || queryGatewayId;
     if (!gatewayId) return res.status(400).send("no gatewayId");
 
     redisClient.get(gatewayId, (err, reply) => {
@@ -60,62 +66,51 @@ class ProvisionController {
   }
 
   static async request(req, res) {
-    const { gatewayId } = req.params;
-    const { devices } = req.body;
+    const { gatewayId, devices } = req.body;
     if (!gatewayId) return res.status(400).send("no gatewayId");
 
     redisClient.get(gatewayId, async (err, reply) => {
       if (err) return res.sendStatus(500);
-
       if (!reply) return res.sendStatus(400);
-
       // at this point, provision is available
-
-      let entities;
-      try {
-        entities = devices.map((device) => {
-          const { device_id, device_name, device_type, channels } = device;
-          if (!(device_id && device_name && device_type && channels))
-            throw new Error("device info error");
-
-          let entity = {
-            parentId: gatewayId,
-            attrs: {
-              device_id,
-              device_name,
-              device_type,
-            },
+      let result = await Promise.all(
+        devices.map(async (device) => {
+          const { device_id, channels, ...deviceInfo } = device;
+          if (!(device_id && channels)) throw new Error("device info error");
+          let entityData = {
+            device_id: { type: "Property", value: device_id },
+            gatewayId: { type: "Property", value: gatewayId },
           };
-
-          for (const [channel_name, channel_info] of Object.entries(channels)) {
-            entity.attrs[channel_name] = channel_info;
+          for (const key in deviceInfo) {
+            entityData[key] = { type: "Property", value: deviceInfo[key] };
+          }
+          for (const key in channels) {
+            entityData[key] = { type: "Property", ...channels[key] };
           }
 
-          return entity;
-        });
-      } catch (error) {
-        return res.status(400).send(error.message);
-      }
-
-      await Promise.all(
-        entities.map(async (entity) => await EntityDAO.add(entity))
+          return await EntityDAO.upsertOne({
+            type: "Device",
+            query: { gatewayId, device_id },
+            data: entityData,
+          });
+        })
       );
 
-      redisClient.del(gatewayId, (err, reply) => {
-        if (err) console.log("error happen after provision succeed");
-
-        res.sendStatus(200);
-      });
+      redisClient.del(gatewayId);
+      return res.json(result);
     });
   }
 
   static async retrieve(req, res) {
-    const { gatewayId } = req.query;
+    const { gatewayId: paramGatewayId } = req.params;
+    const { gatewayId: queryGatewayId } = req.query;
+    let gatewayId = paramGatewayId || queryGatewayId;
     if (!gatewayId) return res.status(400).send("no gatewayId");
 
     try {
       const result = await EntityDAO.getMany({
-        parentId: gatewayId,
+        type: "Device",
+        query: { gatewayId },
       });
 
       return res.json(result);
