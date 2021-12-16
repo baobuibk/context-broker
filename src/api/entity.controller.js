@@ -57,22 +57,21 @@ class EntityController {
   }
 
   static async telemetryGateway(req, res) {
-    const { gatewayId, devices, timestamp } = req.body;
+    let { gatewayId, devices, timestamp } = req.body;
 
     try {
-      await Promise.all(
+      let result = await Promise.all(
         Object.entries(devices).map(async (device) => {
           const [device_id, channelData] = device;
-          await EntityDAO.telemetryOne({
+          return await EntityDAO.telemetryOne({
             type: "Device",
             query: { gatewayId, device_id },
             data: channelData,
-            timestamp,
+            timestamp: timestamp || new Date(),
           });
         })
       );
-
-      return res.sendStatus(200);
+      return res.json(result);
     } catch (error) {
       debug(error.message);
       return res.sendStatus(500);

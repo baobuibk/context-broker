@@ -76,7 +76,7 @@ class EntityDAO {
   static async telemetryOne({ id, type, query, data, timestamp }) {
     if (id && !ObjectId.isValid(id)) throw new Error("invalid id");
     //
-    let notifyObject = { timestamp, data: {} };
+    let notifyObject = { timestamp: timestamp || new Date(), data: {} };
     //
     let setObject = {};
     for (const [attr, attributeData] of Object.entries(data)) {
@@ -95,7 +95,11 @@ class EntityDAO {
     let result = await Entity.findOneAndUpdate(filter, { $set: setObject });
     if (!result.ok) throw new Error("mongodb");
     if (!result.value) throw new Error("id not found");
-    redisClient.publish("context-broker." + id, JSON.stringify(notifyObject));
+    redisClient.publish(
+      "context-broker." + result.value._id.toString(),
+      JSON.stringify(notifyObject)
+    );
+    return true;
   }
 
   static async updateById({ id, data }) {
