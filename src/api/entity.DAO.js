@@ -18,15 +18,18 @@ class EntityDAO {
     if (!Entity) Entity = db.collection(collName);
   }
 
-  static async addOne(data) {
-    let newEntity = makeNewEntityObject(data);
+  static async addOne(entityData) {
+    if (!isValidObject(entityData))
+      throw new Error("entityData must be an object");
+    let newEntity = makeNewEntityObject(entityData);
     let result = await Entity.insertOne(newEntity);
     return { id: result.insertedId };
   }
 
-  static async addMany(data) {
-    if (!Array.isArray(data)) throw new Error("entities");
-    let newEntities = data.map(makeNewEntityObject);
+  static async addMany(entitiesData) {
+    if (!Array.isArray(entitiesData))
+      throw new Error("entitiesData must be an array");
+    let newEntities = entitiesData.map(makeNewEntityObject);
     let result = await Entity.insertMany(newEntities);
     return Object.entries(result.insertedIds).map((item) => {
       return { id: item[1] };

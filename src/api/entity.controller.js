@@ -78,9 +78,10 @@ class EntityController {
     }
   }
 
-  // updateAttribute & replaceAttribute
-  static async updateAttribute(req, res) {
+  static async update(req, res) {
     const { id } = req.query;
+
+    if (!id) res.status(400).send("require id");
     const data = req.body;
 
     try {
@@ -108,7 +109,7 @@ class EntityController {
     }
   }
 
-  static async timeseries(req, res) {
+  static async getTimeseries(req, res) {
     const { id, ids, type, q, attrs, options } = req.query;
 
     try {
