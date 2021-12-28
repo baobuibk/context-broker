@@ -174,7 +174,6 @@ async function solveEntityAttr(entity, attr, options) {
           attrs: target.attr,
           options,
         });
-        console.log(targetEntity);
         return targetEntity ? targetEntity[target.attr] : null;
       } else if (type === "Property") {
         return attributeData.value;
@@ -217,7 +216,7 @@ async function solveRecord(entity, attr, options) {
       return await axios
         .get(url, {
           params: {
-            id: entity._id,
+            id: entity._id.toString(),
             attr,
             ...options,
           },

@@ -110,7 +110,7 @@ class EntityController {
   }
 
   static async getTimeseries(req, res) {
-    const { id, ids, type, q, attrs, options } = req.query;
+    const { id, ids, type, q, attrs, ...options } = req.query;
 
     try {
       let result;
