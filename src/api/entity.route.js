@@ -5,6 +5,7 @@ const EntityController = require("./entity.controller");
 
 router.post("/add", EntityController.add);
 router.get("/get", EntityController.get);
+router.get("/:entityId", EntityController.getById);
 router.post("/update", EntityController.update);
 router.get("/delete", EntityController.delete);
 

@@ -15,7 +15,20 @@ class EntityController {
 
       return res.json(result);
     } catch (error) {
-      debug(error.message);
+      debug(error);
+      return res.sendStatus(500);
+    }
+  }
+
+  static async getById(req, res) {
+    const { entityId } = req.params;
+    const { attrs, options } = req.query;
+
+    try {
+      let result = await EntityDAO.getById({ id: entityId, attrs, options });
+      return res.json(result);
+    } catch (error) {
+      debug(error);
       return res.sendStatus(500);
     }
   }

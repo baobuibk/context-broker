@@ -21,9 +21,12 @@ class EntityDAO {
   static async addOne(entityData) {
     if (!isValidObject(entityData))
       throw new Error("entityData must be an object");
-    let newEntity = makeNewEntityObject(entityData);
-    let result = await Entity.insertOne(newEntity);
-    return { id: result.insertedId };
+    let newEntityDraft = makeNewEntityObject(entityData);
+    let { acknowledged, insertedId } = await Entity.insertOne(newEntityDraft);
+    if (!acknowledged) throw new Error("database error");
+    let { _id, ...newEntity } = await Entity.findOne({ _id: insertedId });
+    newEntity.id = _id.toString();
+    return newEntity;
   }
 
   static async addMany(entitiesData) {
@@ -256,6 +259,7 @@ function solveList(list) {
 }
 
 function makeNewEntityObject(entity) {
+  debug("entity", entity);
   const { type, ...attributes } = entity;
   if (!isValidString(type)) throw new Error("type");
 
