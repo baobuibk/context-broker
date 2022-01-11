@@ -115,7 +115,7 @@ class EntityController {
       if (id) result = await EntityDAO.deleteById({ id });
       else result = await EntityDAO.deleteMany({ ids, type, query });
       debug(result);
-      return res.sendStatus(200);
+      return res.json(result);
     } catch (error) {
       debug(error.message);
       return res.sendStatus(500);
@@ -136,8 +136,8 @@ class EntityController {
           attrs,
           options,
         });
-      debug(result);
-      return res.json({ data: result });
+
+      return res.json(result);
     } catch (error) {
       debug(error.message);
       return res.sendStatus(500);

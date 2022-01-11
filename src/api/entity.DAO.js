@@ -71,7 +71,6 @@ class EntityDAO {
     };
 
     const entities = await Entity.find(filter).toArray();
-    debug(entities);
     return await Promise.all(
       entities.map(
         async (entity) => await solveEntity(entity, { attrs, options })
@@ -102,7 +101,7 @@ class EntityDAO {
     if (!result.ok) throw new Error("mongodb");
     if (!result.value) throw new Error("id not found");
     redisClient.publish(
-      "context-broker." + result.value._id.toString(),
+      "context-broker/for-record-engine/" + result.value._id.toString(),
       JSON.stringify(notifyObject)
     );
     return true;
@@ -123,6 +122,8 @@ class EntityDAO {
     if (!id || !ObjectId.isValid(id)) throw new Error("no id or invalid id");
     let filter = { _id: ObjectId(id) };
     await Entity.deleteOne(filter);
+
+    return { status: "OK" };
   }
 
   static async deleteMany({ ids, type, query }) {
@@ -259,7 +260,6 @@ function solveList(list) {
 }
 
 function makeNewEntityObject(entity) {
-  debug("entity", entity);
   const { type, ...attributes } = entity;
   if (!isValidString(type)) throw new Error("type");
 

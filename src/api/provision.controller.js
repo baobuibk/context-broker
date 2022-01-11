@@ -19,7 +19,7 @@ class ProvisionController {
       (err, reply) => {
         if (err) return res.sendStatus(500);
 
-        res.sendStatus(200);
+        res.send({ status: "OK" });
       }
     );
   }
@@ -37,7 +37,7 @@ class ProvisionController {
       redisClient.del(gatewayId, (err, reply) => {
         if (err) return res.sendStatus(500);
 
-        return res.sendStatus(200);
+        res.send({ status: "OK" });
       });
     });
   }
@@ -51,7 +51,7 @@ class ProvisionController {
     redisClient.get(gatewayId, (err, reply) => {
       if (err) return res.sendStatus(500);
 
-      if (!reply) return res.send("not available");
+      if (!reply) return res.send({ status: "not available" });
 
       // at this point, provision is available
       // send back time left
@@ -97,6 +97,7 @@ class ProvisionController {
       );
 
       redisClient.del(gatewayId);
+      redisClient.publish("context-broker/provision/" + gatewayId, "request");
       return res.json(result);
     });
   }
