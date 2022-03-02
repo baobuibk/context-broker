@@ -1,18 +1,14 @@
-const entitySchema = {
+module.exports = {
   $jsonSchema: {
     bsonType: "object",
-
-    required: ["_id", "path", "attrs"],
+    required: ["_id", "type"],
 
     properties: {
       _id: { bsonType: "objectId" },
-      path: { bsonType: "string" },
-      attrs: { bsonType: "object" },
+      type: { bsonType: "string" },
     },
   },
 };
-
-module.exports = entitySchema;
 
 // patternProperties: {
 //   "^s_": { bsonType: "string" },

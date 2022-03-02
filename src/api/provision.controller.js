@@ -1,119 +1,125 @@
 const EntityDAO = require("./entity.DAO");
+const debug = require("debug")("ProvisionController");
+const redisClient = require("../redis");
 
-const PROVISION_TIMEOUT = process.env.PROVISION_TIMEOUT || 120000;
-let sessions = {};
+const PROVISION_TIMEOUT = Number(process.env.PROVISION_TIMEOUT) || 120;
 
-// begin
-exports.begin = async (req, res) => {
-  const { entity, timeout = PROVISION_TIMEOUT } = req.query;
-  if (!entity) return res.status(400).send("need entity");
+class ProvisionController {
+  static async begin(req, res) {
+    const { gatewayId: paramGatewayId } = req.params;
+    const { gatewayId: queryGatewayId } = req.query;
+    let gatewayId = paramGatewayId || queryGatewayId;
+    if (!gatewayId) return res.status(400).send("no gatewayId");
 
-  if (!sessions[entity])
-    sessions[entity] = {
-      status: "pending",
-      timeoutHandler: setTimeout(() => delete sessions[entity], timeout * 1000),
-    };
+    redisClient.set(
+      gatewayId,
+      "available",
+      "EX",
+      PROVISION_TIMEOUT,
+      (err, reply) => {
+        if (err) return res.sendStatus(500);
 
-  return res.send({ data: { status: sessions[entity].status } });
-};
-
-// end
-exports.end = async (req, res) => {
-  const { entity } = req.query;
-  if (!entity) return res.status(400).send("need entity");
-
-  if (sessions[entity]) {
-    clearTimeout(sessions[entity]);
-    delete sessions[entity];
+        res.send({ status: "OK" });
+      }
+    );
   }
 
-  return res.json({ data: { status: "ended" } });
-};
+  static async end(req, res) {
+    const { gatewayId: paramGatewayId } = req.params;
+    const { gatewayId: queryGatewayId } = req.query;
+    let gatewayId = paramGatewayId || queryGatewayId;
+    if (!gatewayId) return res.status(400).send("no gatewayId");
 
-// status
-exports.status = async (req, res) => {
-  const { entity } = req.query;
-  if (!entity) return res.status(400).send("need entity");
+    redisClient.exists(gatewayId, (err, reply) => {
+      if (err) return res.sendStatus(500);
+      if (!reply) return res.sendStatus(400);
 
-  if (sessions[entity])
-    return res.send({ data: { status: sessions[entity].status } });
+      redisClient.del(gatewayId, (err, reply) => {
+        if (err) return res.sendStatus(500);
 
-  return res.send({ data: { status: "ended" } });
-};
-
-// request
-exports.request = async (req, res) => {
-  const { data, entity } = req.body;
-
-  if (!entity) return res.status(400).send("entity is undefined");
-
-  if (!sessions[entity]) return res.status(401).send("unavailable");
-
-  let result = {};
-  await Promise.all(
-    data.map(async (device) => {
-      const { device_id, device_name, device_kind, device_channels } = device;
-      if (!(device_id && device_name && device_kind && device_channels))
-        return false;
-
-      result[device_id] = {}; // !!!
-
-      let channelData = {};
-      let channelAlias = {};
-      let channelRecord = {};
-      for (const channel of device_channels) {
-        channelData[channel.channel_id] = null;
-        channelRecord[channel.channel_id] = true;
-        channelAlias[channel.channel_name] = channel.channel_id;
-      }
-      const data = {
-        kind: "Device",
-        device_id,
-        device_name,
-        device_kind,
-        device_channels,
-        ...channelData,
-      };
-      const alias = channelAlias;
-      const record = channelRecord;
-
-      // For every device
-      try {
-        let { ok } = await EntityDAO.upsertOne({
-          parent: entity,
-          data,
-          alias,
-          record,
-          queries: { device_id },
-        });
-
-        for (const channel of device_channels) {
-          result[device_id][channel.channel_id] = ok;
-        }
-      } catch (error) {
-        console.log(error);
-        for (const channel of device_channels) {
-          result[device_id][channel.channel_id] = 0;
-        }
-      }
-    })
-  );
-  return res.json({ data: result });
-};
-
-// retrieve result
-exports.retrieve = async (req, res) => {
-  const { entity } = req.query;
-  if (!entity) return res.status(400).send("need entity");
-
-  try {
-    const result = await EntityDAO.getMany({
-      parent: entity,
-      queries: { kind: "Device" },
+        res.send({ status: "OK" });
+      });
     });
-    return res.json({ data: result });
-  } catch (error) {
-    console.log(error);
-    return res.sendStatus(500);
   }
-};
+
+  static async status(req, res) {
+    const { gatewayId: paramGatewayId } = req.params;
+    const { gatewayId: queryGatewayId } = req.query;
+    let gatewayId = paramGatewayId || queryGatewayId;
+    if (!gatewayId) return res.status(400).send("no gatewayId");
+
+    redisClient.get(gatewayId, (err, reply) => {
+      if (err) return res.sendStatus(500);
+
+      if (!reply) return res.send({ status: "not available" });
+
+      // at this point, provision is available
+      // send back time left
+      console.log("here");
+      redisClient.ttl(gatewayId, (err, ttl) => {
+        if (err) return res.sendStatus(500);
+
+        console.log("there");
+        return res.json({ timeout: ttl, status: reply });
+      });
+    });
+  }
+
+  static async request(req, res) {
+    const { gatewayId, devices } = req.body;
+    if (!gatewayId) return res.status(400).send("no gatewayId");
+
+    redisClient.get(gatewayId, async (err, reply) => {
+      if (err) return res.sendStatus(500);
+      if (!reply) return res.sendStatus(400);
+      // at this point, provision is available
+      let result = await Promise.all(
+        devices.map(async (device) => {
+          const { device_id, channels, ...deviceInfo } = device;
+          if (!(device_id && channels)) throw new Error("device info error");
+          let entityData = {
+            device_id: { type: "Property", value: device_id },
+            gatewayId: { type: "Property", value: gatewayId },
+          };
+          for (const key in deviceInfo) {
+            entityData[key] = { type: "Property", value: deviceInfo[key] };
+          }
+          for (const key in channels) {
+            entityData[key] = { type: "Property", ...channels[key] };
+          }
+
+          return await EntityDAO.upsertOne({
+            type: "Device",
+            query: { gatewayId, device_id },
+            data: entityData,
+          });
+        })
+      );
+
+      redisClient.del(gatewayId);
+      redisClient.publish("context-broker/provision/" + gatewayId, "request");
+      return res.json(result);
+    });
+  }
+
+  static async retrieve(req, res) {
+    const { gatewayId: paramGatewayId } = req.params;
+    const { gatewayId: queryGatewayId } = req.query;
+    let gatewayId = paramGatewayId || queryGatewayId;
+    if (!gatewayId) return res.status(400).send("no gatewayId");
+
+    try {
+      const result = await EntityDAO.getMany({
+        type: "Device",
+        query: { gatewayId },
+      });
+
+      return res.json(result);
+    } catch (error) {
+      console.log(error);
+      return res.sendStatus(500);
+    }
+  }
+}
+
+module.exports = ProvisionController;

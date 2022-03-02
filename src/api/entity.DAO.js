@@ -1,444 +1,364 @@
-const ObjectId = require("mongodb").ObjectId;
-
-const RecordDAO = require("./record.DAO");
-const Schema = require("../schemas/entity.schema");
+const { ObjectId } = require("mongodb");
+const debug = require("debug")("EntityDAO");
+const redisClient = require("../redis");
+const Schema = require("./entity.schema");
+const axios = require("axios");
 
 let Entity;
-const collName = "entities";
+const collName = "entity";
 
 class EntityDAO {
-  static async addSchema(db) {
+  static async init(db) {
     const collList = await db
       .listCollections({ name: collName }, { nameOnly: true })
       .toArray();
-
-    if (collList.length) {
+    if (collList.length)
       await db.command({ collMod: collName, validator: Schema });
-      console.log(`modified ${collName} schema`);
-    } else {
-      await db.createCollection(collName, { validator: Schema });
-      console.log(`created ${collName} schema`);
-    }
-  }
-
-  static inject(db) {
+    else await db.createCollection(collName, { validator: Schema });
     if (!Entity) Entity = db.collection(collName);
   }
 
-  /**
-   * Create a new entity
-   * @param {Object} props Passed information
-   * @param {string} props.parent id of parent entity
-   * @param {Object} props.data data of new entity
-   * @param {Object} props.alias alias of new entity
-   * @param {Object} props.link link of new entity
-   * @param {Object} props.record which attrs to record history
-   * @returns {Object}
-   */
-  static async add(props) {
-    const { parent, data, alias, link, record } = props;
-
-    const parentEntity = parent
-      ? await Entity.findOne(
-          { _id: ObjectId(parent) },
-          { projection: { path: 1 } }
-        )
-      : null;
-    const path = parentEntity
-      ? parentEntity.path
-        ? parentEntity.path + "," + parent
-        : parent
-      : "";
-
-    let attrsObj = {};
-    for (const attr in data) {
-      attrsObj[attr] = {
-        type: "data",
-        value: data[attr],
-      };
-    }
-    for (const attr in alias) {
-      attrsObj[attr] = {
-        type: "alias",
-        target: alias[attr],
-      };
-    }
-    for (const attr in link) {
-      attrsObj[attr] = {
-        type: "link",
-        target: {
-          entity: ObjectId(link[attr].entity),
-          attr: link[attr].attr,
-        },
-      };
-    }
-    for (const attr in record) {
-      if (record[attr]) attrsObj[attr].record = true;
-    }
-
-    const newEntity = {
-      path,
-      parent: parent ? ObjectId(parent) : null,
-      attrs: attrsObj,
-    };
-    const { insertedId } = await Entity.insertOne(newEntity);
-    let result = { id: insertedId };
-    for (const key in attrsObj) {
-      const attr = attrsObj[key];
-      result[key] =
-        attr.type === "data"
-          ? attr.value
-          : attr.type === "link"
-          ? "link"
-          : attr.type === "alias"
-          ? "alias"
-          : "error";
-    }
-
-    return result;
+  static async addOne(entityData) {
+    if (!isValidObject(entityData))
+      throw new Error("entityData must be an object");
+    let newEntityDraft = makeNewEntityObject(entityData);
+    let { acknowledged, insertedId } = await Entity.insertOne(newEntityDraft);
+    if (!acknowledged) throw new Error("database error");
+    let { _id, ...newEntity } = await Entity.findOne({ _id: insertedId });
+    newEntity.id = _id.toString();
+    return newEntity;
   }
 
-  // upsertOne
-  static async upsertOne(props) {
-    const { parent, data, alias, link, record, queries } = props;
-
-    const parentEntity = parent
-      ? await Entity.findOne(
-          { _id: ObjectId(parent) },
-          { projection: { path: 1 } }
-        )
-      : null;
-    const path = parentEntity
-      ? parentEntity.path
-        ? parentEntity.path + "," + parent
-        : parent
-      : "";
-
-    let setObj = {
-      path,
-      parent: parent ? ObjectId(parent) : null,
-    };
-
-    for (const attr in data) {
-      setObj["attrs." + attr + ".type"] = "data";
-      setObj["attrs." + attr + ".value"] = data[attr];
-    }
-    for (const attr in alias) {
-      setObj["attrs." + attr] = {
-        type: "alias",
-        target: alias[attr],
-      };
-    }
-    for (const attr in link) {
-      setObj["attrs." + attr] = {
-        type: "link",
-        target: {
-          entity: ObjectId(link[attr].entity),
-          attr: link[attr].attr,
-        },
-      };
-    }
-    for (const attr in record) {
-      if (record[attr]) setObj["attrs." + attr + ".record"] = true;
-    }
-
-    let queryObj = {};
-    for (const key in queries) {
-      queryObj[`attrs.${key}.value`] = queries[key];
-    }
-    const filter = {
-      ...(parent && { parent: ObjectId(parent) }),
-      ...queryObj,
-    };
-    const update = { $set: setObj };
-    const options = { upsert: true };
-    const {
-      result,
-      modifiedCount: mod,
-      upsertedCount: ups,
-      matchedCount: mat,
-    } = await Entity.updateOne(filter, update, options);
-
-    const ok = result.ok;
-    const status =
-      !mod && !ups && mat
-        ? "unmodified"
-        : mod && !ups && mat
-        ? "modified"
-        : !mod && ups && !mat
-        ? "upserted"
-        : "error";
-    return { ok, status };
+  static async addMany(entitiesData) {
+    if (!Array.isArray(entitiesData))
+      throw new Error("entitiesData must be an array");
+    let newEntities = entitiesData.map(makeNewEntityObject);
+    let result = await Entity.insertMany(newEntities);
+    return Object.entries(result.insertedIds).map((item) => {
+      return { id: item[1] };
+    });
   }
 
-  // getById
-  static async getById(id, attrs) {
-    const query = { _id: ObjectId(id) };
-    const options = { projection: { attrs: 1, _id: 0 } };
-    const entity = await Entity.findOne(query, options);
-    if (!entity) return null;
+  static async upsertOne({ type, query, data }) {
+    let queryObject = makeQueryObject(query);
 
-    const attrsObj = entity.attrs;
-    let result = {};
-    if (attrs) {
-      const attrsArr = Array.isArray(attrs) ? attrs : attrs.split(",");
-      for (const key of attrsArr) {
-        result[key] = await solveAttr(attrsObj, key);
-      }
-    } else
-      for (const key in attrsObj) {
-        const attr = attrsObj[key];
-        result[key] =
-          attr.type === "data"
-            ? attr.value
-            : attr.type === "link"
-            ? "link"
-            : attr.type === "alias"
-            ? "alias"
-            : "error";
-      }
-    result.id = id;
-    return result;
-  }
-
-  // getMany
-  static async getMany({ ids, parent, ancestor, attrs, queries }) {
-    let queryObj = {};
-    for (const key in queries) {
-      queryObj[`attrs.${key}.value`] = queries[key];
-    }
-    const query = {
-      ...(ids && { _id: { $in: ObjectIdsArr(ids) } }),
-      //  path = new RegExp(parent + "$");
-      ...(parent && { parent: ObjectId(parent) }),
-      ...(ancestor && { path: new RegExp(ancestor) }),
-      ...queryObj,
+    let filter = {
+      ...(type && { type: { $in: solveList(type) } }),
+      ...queryObject,
     };
 
-    const options = { projection: { attrs: 1 } };
-    const entitiesArr = await Entity.find(query, options).toArray();
+    let setObject = makeSetObject(data);
+    let options = { upsert: true };
+    let result = await Entity.updateOne(filter, { $set: setObject }, options);
+
+    if (result.matchedCount || result.upsertedCount) return true;
+    return false;
+  }
+
+  static async getById({ id, attrs, options }) {
+    if (!id || !ObjectId.isValid(id)) throw new Error("no id or invalid id");
+    let filter = { ...(id && { _id: ObjectId(id) }) };
+    const entity = await Entity.findOne(filter);
+    return entity ? await solveEntity(entity, { attrs, options }) : null;
+  }
+
+  static async getMany({ ids, type, query, attrs, options }) {
+    let queryObject = makeQueryObject(query);
+    let filter = {
+      ...(ids && { _id: { $in: solveList(ids).map((id) => ObjectId(id)) } }),
+      ...(type && { type: { $in: solveList(type) } }),
+      ...queryObject,
+    };
+
+    const entities = await Entity.find(filter).toArray();
     return await Promise.all(
-      entitiesArr.map(async (entity) => {
-        const attrsObj = entity.attrs;
-        let result = {};
-        if (attrs) {
-          const attrsArr = Array.isArray(attrs) ? attrs : attrs.split(",");
-          for (const key of attrsArr) {
-            result[key] = await solveAttr(attrsObj, key);
-          }
-        } else
-          for (const key in attrsObj) {
-            const attr = attrsObj[key];
-            result[key] =
-              attr.type === "data"
-                ? attr.value
-                : attr.type === "link"
-                ? "link"
-                : attr.type === "alias"
-                ? "alias"
-                : "error";
-          }
-        result.id = entity._id;
-        return result;
-      })
+      entities.map(
+        async (entity) => await solveEntity(entity, { attrs, options })
+      )
     );
   }
 
-  // updateOne
-  static async updateOne(props) {
-    const {
-      id,
-      parent,
-      ancestor,
-      data,
-      alias,
-      link,
-      record,
-      queries,
-      timestamp,
-    } = props;
-
-    let setObj = {};
-    let projectionObj = {};
-    for (const attr in data) {
-      setObj["attrs." + attr + ".type"] = "data";
-      setObj["attrs." + attr + ".value"] = data[attr];
-      projectionObj["attrs." + attr] = 1;
+  static async telemetryOne({ id, type, query, data, timestamp }) {
+    if (id && !ObjectId.isValid(id)) throw new Error("invalid id");
+    //
+    let notifyObject = { timestamp: timestamp || new Date(), data: {} };
+    //
+    let setObject = {};
+    for (const [attr, attributeData] of Object.entries(data)) {
+      setObject[attr + ".value"] = attributeData;
+      setObject[attr + ".type"] = "Property";
+      //
+      notifyObject.data[attr] = attributeData;
+      //
     }
-    for (const attr in alias) {
-      setObj["attrs." + attr] = { type: "alias", target: alias[attr] };
-      projectionObj["attrs." + attr] = 1;
-    }
-    for (const attr in link) {
-      setObj["attrs." + attr] = {
-        type: "link",
-        target: {
-          entity: ObjectId(link[attr].entity),
-          attr: link[attr].attr,
-        },
-      };
-      projectionObj["attrs." + attr] = 1;
-    }
-    for (const attr in record) {
-      if (record[attr]) setObj["attrs." + attr + ".record"] = true; //!!!
-    }
-
-    let queryObj = {};
-    for (const key in queries) {
-      queryObj[`attrs.${key}.value`] = queries[key];
-    }
-    const filter = {
+    let queryObject = makeQueryObject(query);
+    let filter = {
       ...(id && { _id: ObjectId(id) }),
-      ...(parent && { parent: ObjectId(parent) }),
-      ...(ancestor && { path: new RegExp(ancestor) }),
-      ...queryObj,
+      ...(type && { type }),
+      ...queryObject,
     };
-    const update = { $set: setObj };
-    const options = { projection: projectionObj, returnOriginal: false };
-    const result = await Entity.findOneAndUpdate(filter, update, options);
-
-    // record feature
-    const updatedEntity = result.value;
-    const attrs = updatedEntity.attrs;
-    await Promise.all(
-      Object.entries(attrs).map(async ([attrName, attr]) => {
-        if (attr.type === "data" && attr.record === true) {
-          const sample = {
-            v: attr.value,
-            t: timestamp ? new Date(timestamp) : new Date(),
-          };
-          return await RecordDAO.addOneSample(
-            updatedEntity._id,
-            attrName,
-            sample
-          );
-        }
-      })
+    let result = await Entity.findOneAndUpdate(filter, { $set: setObject });
+    if (!result.ok) throw new Error("mongodb");
+    if (!result.value) throw new Error("id not found");
+    redisClient.publish(
+      "context-broker/for-record-engine/" + result.value._id.toString(),
+      JSON.stringify(notifyObject)
     );
-
-    return { ok: result.ok };
+    return true;
   }
 
-  // deleteById
-  static async deleteById(id) {
-    const filter = { _id: ObjectId(id) };
-    return (await Entity.deleteOne(filter)).result;
+  static async updateById({ id, data }) {
+    if (!id || !ObjectId.isValid(id)) throw new Error("no id or invalid id");
+    let setObject = makeSetObject(data);
+    let result = await Entity.findOneAndUpdate(
+      { _id: ObjectId(id) },
+      { $set: setObject }
+    );
+    if (!result.ok) throw new Error("mongodb error");
+    if (!result.value) throw new Error("not found");
   }
 
-  // deleteMany
-  static async deleteMany({ ids, parent, ancestor, queries }) {
-    let queryObj = {};
-    for (const key in queries) {
-      queryObj[`attrs.${key}.value`] = queries[key];
-    }
-    const filter = {
-      ...(ids && { _id: { $in: ObjectIdsArr(ids) } }),
-      ...(parent && { parent: ObjectId(parent) }),
-      ...(ancestor && { path: new RegExp(ancestor) }),
-      ...queryObj,
+  static async deleteById({ id }) {
+    if (!id || !ObjectId.isValid(id)) throw new Error("no id or invalid id");
+    let filter = { _id: ObjectId(id) };
+    await Entity.deleteOne(filter);
+
+    return { status: "OK" };
+  }
+
+  static async deleteMany({ ids, type, query }) {
+    let queryObject = makeQueryObject(query);
+    let filter = {
+      ...(ids && { _id: { $in: solveList(ids).map((id) => ObjectId(id)) } }),
+      ...(type && { type: { $in: solveList(type) } }),
+      ...queryObject,
     };
-    return (await Entity.deleteMany(filter)).result;
+    await Entity.deleteMany(filter);
   }
 
-  // Get records for entity with specific id
-  static async getRecordsById(props) {
-    const { id, attrs: attrsArr, date, from, to, interval, filter } = props;
+  static async getRecordById(props) {
+    const { id, attrs, options } = props;
+    const entity = await Entity.findOne({ _id: ObjectId(id) });
+    if (!entity) return null;
+    return solveEntityRecord({ entity, attrs, options });
+  }
 
-    const query = { _id: ObjectId(id) };
-    const options = { projection: { attrs: 1, _id: 0 } };
-    const entity = await Entity.findOne(query, options);
-    if (!entity) throw new Error("entity not found");
-
-    let result = {};
-    for (const attr of attrsArr) {
-      result[attr] = await solveRecords({
-        entity: id,
-        attrsObj: entity.attrs,
-        attrName: attr,
-        date,
-        from,
-        to,
-        interval,
-        filter,
-      });
-    }
-    return result;
+  static async getRecordMany({}) {
+    return null;
   }
 }
 
 // STATIC FUNCTIONS
 
-async function solveAttr(attrsObj, key) {
-  const attr = attrsObj[key];
-  if (attr) {
-    const type = attr.type;
-    switch (type) {
-      case "data":
-        return attr.value;
-      case "link":
-        const id = attr.target.entity;
-        const attr1 = attr.target.attr;
-        const result = await EntityDAO.getById(id, attr1);
-        return result[attr1];
-      case "alias":
-        return solveAttr(attrsObj, attr.target);
-      default:
-        throw new Error("type is strange");
+let sysAttrs = ["_id", "type"];
+
+async function solveEntity(entity, { attrs, options }) {
+  let result = { id: entity._id, type: entity.type };
+  let attrList = attrs ? solveList(attrs) : Object.keys(entity);
+  let filteredList = attrList.filter((attr) => !sysAttrs.includes(attr));
+  for (const attr of filteredList) {
+    result[attr] = await solveEntityAttr(entity, attr, options);
+  }
+  return result;
+}
+
+async function solveEntityAttr(entity, attr, options) {
+  const attributeData = entity[attr];
+
+  if (attributeData) {
+    if (!options) return attributeData;
+    else if (options === "keyValue") {
+      const type = attributeData.type;
+      const target = attributeData.target;
+      if (type === "Alias") {
+        return solveEntityAttr(entity, target.attr, options);
+      } else if (type === "Link") {
+        let targetEntity = await EntityDAO.getById({
+          id: target.id,
+          attrs: target.attr,
+          options,
+        });
+        return targetEntity ? targetEntity[target.attr] : null;
+      } else if (type === "Property") {
+        return attributeData.value;
+      } else return null;
     }
   } else return null;
 }
 
-async function solveRecords(props) {
-  const { entity, attrsObj, attrName, date, from, to, interval, filter } =
-    props;
+async function solveEntityRecord({ entity, attrs, options }) {
+  let result = { id: entity._id, type: entity.type };
 
-  const attr = attrsObj[attrName];
-  if (attr) {
-    const type = attr.type;
-    switch (type) {
-      case "data":
-        return RecordDAO.get({
-          entity,
-          attr: attrName,
-          date,
-          from,
-          to,
-          interval,
-          filter,
-        });
-      case "link":
-        const targetEntity = attr.target.entity;
-        const targetAttr = attr.target.attr;
-        const result = await EntityDAO.getRecordsById({
-          id: targetEntity,
-          attrs: [targetAttr],
-          date,
-          from,
-          to,
-          interval,
-          filter,
-        });
-        return result[targetAttr];
-      case "alias":
-        return solveRecords({
-          entity,
-          attrsObj,
-          attrName: attr.target,
-          date,
-          from,
-          to,
-          interval,
-          filter,
-        });
-      default:
-        throw new Error("type is strange");
-    }
-  } else return null;
+  let attrList = attrs ? solveList(attrs) : Object.keys(entity);
+  let filteredList = attrList.filter((attr) => !sysAttrs.includes(attr));
+
+  for (const attr of filteredList) {
+    result[attr] = await solveRecord(entity, attr, options);
+  }
+  return result;
 }
 
-function ObjectIdsArr(ids) {
-  let idsArr = Array.isArray(ids) ? ids : ids.split(",");
-  return idsArr.map((id) => ObjectId(id));
+const recordEngineUrl = process.env.RECORD_ENGINE_URL;
+async function solveRecord(entity, attr, options) {
+  const attributeData = entity[attr];
+
+  if (attributeData) {
+    const type = attributeData.type;
+    const target = attributeData.target;
+
+    if (type === "Alias") {
+      return solveRecord(entity, target.attr, options);
+    } else if (type === "Link") {
+      let targetEntity = await EntityDAO.getRecordById({
+        id: target.id,
+        attrs: target.attr,
+        options,
+      });
+      return targetEntity ? targetEntity[target.attr] : null;
+    } else if (type === "Property") {
+      const url = recordEngineUrl + "/api/record/get";
+      return await axios
+        .get(url, {
+          params: {
+            id: entity._id.toString(),
+            attr,
+            ...options,
+          },
+        })
+        .then((response) => response.data)
+        .catch((error) => {
+          debug("get record error: " + error.message);
+          return null;
+        });
+    } else {
+      debug("type not recognize");
+      return null;
+    }
+  } else {
+    debug("no " + attr + " in " + entity._id);
+    return null;
+  }
+}
+
+function isValidString(str) {
+  return !str || typeof str !== "string" || !str.length ? false : true;
+}
+function isValidObject(obj) {
+  return !Array.isArray(obj) && typeof obj === "object" && obj !== null
+    ? true
+    : false;
+}
+
+function solveList(list) {
+  return list
+    ? Array.isArray(list)
+      ? list
+      : typeof list === "string"
+      ? list.split(",")
+      : []
+    : [];
+}
+
+function makeNewEntityObject(entity) {
+  const { type, ...attributes } = entity;
+  if (!isValidString(type)) throw new Error("type");
+
+  let newEntity = { type };
+
+  for (const [attr, attributeData] of Object.entries(attributes)) {
+    if (
+      Array.isArray(attributeData) ||
+      typeof attributeData === "number" ||
+      typeof attributeData === "boolean" ||
+      typeof attributeData === "string"
+    ) {
+      newEntity[attr] = { type: "Property", value: attributeData };
+    } else if (isValidObject(attributeData)) {
+      const { type, target, value, ...metadata } = attributeData;
+
+      if (type === "Alias" && isValidString(target?.attr)) {
+        newEntity[attr] = {
+          type: "Alias",
+          target: { attr: target.attr },
+          ...metadata,
+        };
+      } else if (
+        type === "Link" &&
+        isValidString(target?.attr) &&
+        isValidString(target?.id)
+      ) {
+        newEntity[attr] = {
+          type: "Link",
+          target: { id: target.id, attr: target.attr },
+          ...metadata,
+        };
+      } else if (type === "Property") {
+        newEntity[attr] = {
+          type: "Property",
+          value,
+          ...metadata,
+        };
+      } else {
+        throw new Error("attributes");
+      }
+    } else {
+      throw new Error("attributes");
+    }
+  }
+
+  return newEntity;
+}
+
+function makeQueryObject(query) {
+  let _query = {};
+  if (query) {
+    let __query = typeof query === "string" ? JSON.parse(query) : query;
+    for (const [key, value] of Object.entries(__query)) {
+      _query[key + ".value"] = value;
+    }
+  }
+  return _query;
+}
+
+function makeSetObject(entityData) {
+  let setObject = {};
+  for (const [attributeName, attributeData] of Object.entries(entityData)) {
+    if (isValidObject(attributeData)) {
+      const { type, target, value, ...metaData } = attributeData;
+
+      if (type === "Alias" && isValidString(target?.attr)) {
+        setObject[attributeName + ".type"] = "Alias";
+        setObject[attributeName + ".target"] = { attr: target.attr };
+        for (const key in metaData) {
+          setObject[attributeName + "." + key] = metaData[key];
+        }
+      } else if (
+        type === "Link" &&
+        isValidString(target?.attr) &&
+        isValidString(target?.id)
+      ) {
+        setObject[attributeName + ".type"] = "Link";
+        setObject[attributeName + ".target"] = {
+          id: target.id,
+          attr: target.attr,
+        };
+        for (const key in metaData) {
+          setObject[attributeName + "." + key] = metaData[key];
+        }
+      } else if (type === "Property") {
+        setObject[attributeName + ".type"] = "Property";
+        if (value) setObject[attributeName + ".value"] = value;
+        for (const key in metaData) {
+          setObject[attributeName + "." + key] = metaData[key];
+        }
+      } else {
+        throw new Error("wrong type attribute");
+      }
+    } else {
+      throw new Error("attribute must be an object");
+    }
+  }
+  return setObject;
 }
 
 module.exports = EntityDAO;
