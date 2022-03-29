@@ -5,6 +5,7 @@ require("./redis");
 const database = require("./database");
 const expressApp = require("./express");
 
+/** Main entry of this code */
 async function main() {
   const DB_URI = process.env.DB_URI || "mongodb://localhost:27017";
   await database.connect(DB_URI);

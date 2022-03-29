@@ -1,6 +1,9 @@
 const EntityDAO = require("./entity.DAO");
 const debug = require("debug")("EntityController");
 
+/**
+ * EntityController for every Entity function
+ */
 class EntityController {
   static async add(req, res) {
     const entityData = req.body;
@@ -16,6 +19,37 @@ class EntityController {
       return res.json(result);
     } catch (error) {
       debug(error);
+      return res.sendStatus(500);
+    }
+  }
+
+  static async update(req, res) {
+    const { id } = req.query;
+
+    if (!id) res.status(400).send("require id");
+    const data = req.body;
+
+    try {
+      await EntityDAO.updateById({ id, data });
+      return res.sendStatus(200);
+    } catch (error) {
+      debug(error.message);
+      return res.sendStatus(500);
+    }
+  }
+
+  // delete an entity
+  static async delete(req, res) {
+    const { id, ids, type, q } = req.query;
+
+    try {
+      let result;
+      if (id) result = await EntityDAO.deleteById({ id });
+      else result = await EntityDAO.deleteMany({ ids, type, query });
+      debug(result);
+      return res.json(result);
+    } catch (error) {
+      debug(error.message);
       return res.sendStatus(500);
     }
   }
@@ -84,37 +118,6 @@ class EntityController {
           });
         })
       );
-      return res.json(result);
-    } catch (error) {
-      debug(error.message);
-      return res.sendStatus(500);
-    }
-  }
-
-  static async update(req, res) {
-    const { id } = req.query;
-
-    if (!id) res.status(400).send("require id");
-    const data = req.body;
-
-    try {
-      await EntityDAO.updateById({ id, data });
-      return res.sendStatus(200);
-    } catch (error) {
-      debug(error.message);
-      return res.sendStatus(500);
-    }
-  }
-
-  // delete an entity
-  static async delete(req, res) {
-    const { id, ids, type, q } = req.query;
-
-    try {
-      let result;
-      if (id) result = await EntityDAO.deleteById({ id });
-      else result = await EntityDAO.deleteMany({ ids, type, query });
-      debug(result);
       return res.json(result);
     } catch (error) {
       debug(error.message);
