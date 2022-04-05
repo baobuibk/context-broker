@@ -18,7 +18,7 @@ class EntityDAO {
     if (!Entity) Entity = db.collection(collName);
   }
 
-  static async addOne(entityData) {
+  static async add(entityData) {
     if (!isValidObject(entityData))
       throw new Error("entityData must be an object");
     let newEntityDraft = makeNewEntityObject(entityData);
@@ -27,16 +27,6 @@ class EntityDAO {
     let { _id, ...newEntity } = await Entity.findOne({ _id: insertedId });
     newEntity.id = _id.toString();
     return newEntity;
-  }
-
-  static async addMany(entitiesData) {
-    if (!Array.isArray(entitiesData))
-      throw new Error("entitiesData must be an array");
-    let newEntities = entitiesData.map(makeNewEntityObject);
-    let result = await Entity.insertMany(newEntities);
-    return Object.entries(result.insertedIds).map((item) => {
-      return { id: item[1] };
-    });
   }
 
   static async upsertOne({ type, query, data }) {
@@ -260,10 +250,10 @@ function solveList(list) {
 }
 
 function makeNewEntityObject(entity) {
-  const { type, ...attributes } = entity;
+  const { name, type, ...attributes } = entity;
   if (!isValidString(type)) throw new Error("type");
 
-  let newEntity = { type };
+  let newEntity = { name, type };
 
   for (const [attr, attributeData] of Object.entries(attributes)) {
     if (

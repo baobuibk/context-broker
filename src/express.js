@@ -13,8 +13,10 @@ app.use(morganLogger("dev"));
 const entityRouter = require("./api/entity.route");
 app.use("/api/entity", entityRouter);
 app.use("/api/entities", entityRouter);
+app.use("/entity", entityRouter);
+app.use("/entities", entityRouter);
 
-app.use("/api/provision", require("./api/provision.route"));
+app.use("/api/provision",  require("./api/provision.route"));
 app.use("/api/command", require("./api/command.route"));
 
 app.use("/api/test", require("./api/test.route"));

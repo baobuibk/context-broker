@@ -5,20 +5,53 @@ const debug = require("debug")("EntityController");
  * EntityController for every Entity function
  */
 class EntityController {
+  static async getById(req, res) {
+    const { entityId } = req.params;
+    const { attrs, options } = req.query;
+
+    try {
+      let result = await EntityDAO.getById({ id: entityId, attrs, options });
+      return res.json(result);
+    } catch (error) {
+      debug(error);
+      return res.sendStatus(500);
+    }
+  }
+
   static async add(req, res) {
     const entityData = req.body;
 
     try {
       let result;
-      if (Array.isArray(entityData))
-        result = await EntityDAO.addMany(entityData);
-      else if (typeof entityData === "object" && entityData !== null)
-        result = await EntityDAO.addOne(entityData);
-      else return res.sendStatus(400);
-
+      if (typeof entityData === "object" && entityData !== null)
+        result = await EntityDAO.add(entityData);
+      else return res.status(400).send("request body must be an entity object");
       return res.json(result);
     } catch (error) {
       debug(error);
+      return res.sendStatus(500);
+    }
+  }
+
+  static async get(req, res) {
+    const { id, ids, type, q, attrs, options } = req.query;
+
+    try {
+      if (id) {
+        let result = await EntityDAO.getById({ id, attrs, options });
+        return res.json(result);
+      } else {
+        let result = await EntityDAO.getMany({
+          ids,
+          type,
+          query: q,
+          attrs,
+          options,
+        });
+        return res.json(result);
+      }
+    } catch (error) {
+      debug(error.message);
       return res.sendStatus(500);
     }
   }
@@ -48,42 +81,6 @@ class EntityController {
       else result = await EntityDAO.deleteMany({ ids, type, query });
       debug(result);
       return res.json(result);
-    } catch (error) {
-      debug(error.message);
-      return res.sendStatus(500);
-    }
-  }
-
-  static async getById(req, res) {
-    const { entityId } = req.params;
-    const { attrs, options } = req.query;
-
-    try {
-      let result = await EntityDAO.getById({ id: entityId, attrs, options });
-      return res.json(result);
-    } catch (error) {
-      debug(error);
-      return res.sendStatus(500);
-    }
-  }
-
-  static async get(req, res) {
-    const { id, ids, type, q, attrs, options } = req.query;
-
-    try {
-      if (id) {
-        let result = await EntityDAO.getById({ id, attrs, options });
-        return res.json(result);
-      } else {
-        let result = await EntityDAO.getMany({
-          ids,
-          type,
-          query: q,
-          attrs,
-          options,
-        });
-        return res.json(result);
-      }
     } catch (error) {
       debug(error.message);
       return res.sendStatus(500);

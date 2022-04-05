@@ -1,5 +1,5 @@
 const EntityDAO = require("./entity.DAO");
-const debug = require("debug")("ProvisionController");
+const debug = require("debug")("provision.controller");
 const redisClient = require("../redis");
 
 const PROVISION_TIMEOUT = Number(process.env.PROVISION_TIMEOUT) || 120;
@@ -67,11 +67,20 @@ class ProvisionController {
 
   static async request(req, res) {
     const { gatewayId, devices } = req.body;
-    if (!gatewayId) return res.status(400).send("no gatewayId");
+    if (!gatewayId) {
+      console.log("error: gatewayId");
+      return res.status(400).send("no gatewayId");
+    }
 
     redisClient.get(gatewayId, async (err, reply) => {
-      if (err) return res.sendStatus(500);
-      if (!reply) return res.sendStatus(400);
+      if (err) {
+        debug("redis error:", err.message);
+        return res.sendStatus(500);
+      }
+      if (!reply) {
+        debug("redis reply error");
+        return res.sendStatus(400);
+      }
       // at this point, provision is available
       let result = await Promise.all(
         devices.map(async (device) => {

@@ -6,6 +6,7 @@ module.exports = {
     properties: {
       _id: { bsonType: "objectId" },
       type: { bsonType: "string" },
+      name: { bsonType: "string" },
     },
   },
 };
