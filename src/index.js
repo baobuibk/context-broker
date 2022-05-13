@@ -1,26 +1,20 @@
-const http = require("http");
+require("dotenv").config();
+const debug = require("debug")("index");
 
-require("./redis");
+const app = require("./app");
+const httpServer = require("http").createServer(app);
 
-const mongo = require("./mongo");
-const expressApp = require("./express");
-
-const DB_URI = process.env.DB_URI || "mongodb://localhost:27017";
-const DB_NAME = process.env.DB_NAME || "context-broker";
-const PORT = process.env.PORT || 8000;
-
-const httpServer = http.createServer(expressApp);
-
-/** Main entry of this code */
 async function main() {
-  await mongo.connect(DB_URI, DB_NAME);
+  await require("./db").connect(
+    process.env.DB_URI || "mongodb://localhost:27017",
+    process.env.DB_NAME || "context-broker"
+  );
 
-  httpServer.listen(PORT, () => {
-    console.log("http server is listening on port", PORT);
-  });
+  const PORT = process.env.PORT || 8000;
+  httpServer.listen(PORT, () => debug("server is listening on port", PORT));
 }
 
 main().catch((error) => {
-  console.log(error.message);
+  debug(error.message);
   process.exit(1);
 });

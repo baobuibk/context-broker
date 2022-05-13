@@ -1,5 +1,5 @@
 const { ObjectId } = require("mongodb");
-const commandSchema = require("./command.schema");
+const commandSchema = require("../schemas/command.schema");
 
 let Command;
 const collName = "command";

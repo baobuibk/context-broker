@@ -1,6 +1,6 @@
 // command controller
 
-const CommandDAO = require("./command.DAO");
+const CommandDAO = require("../DAOs/command.DAO");
 const debug = require("debug")("command.controller");
 // const mqttClient = require("../mqtt");
 

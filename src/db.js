@@ -1,7 +1,7 @@
 const { MongoClient } = require("mongodb");
 
-const EntityDAO = require("./api/entity.DAO");
-const CommandDAO = require("./api/command.DAO");
+const EntityDAO = require("./DAOs/entity.DAO");
+const CommandDAO = require("./DAOs/command.DAO");
 const DB_TIMEOUT_MS = Number(process.env.DB_TIMEOUT_MS) || 10000;
 
 let mongoClient;

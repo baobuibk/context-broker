@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
-const CommandController = require("./command.controller");
+const CommandController = require("../controllers/command.controller");
 
 router.post("/", CommandController.create);
 router.get("/", CommandController.readAll);
