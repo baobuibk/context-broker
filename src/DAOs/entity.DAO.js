@@ -49,7 +49,7 @@ class EntityDAO {
     if (attrs) attrs.split(",").forEach((attr) => (_projection[attr] = 1));
 
     const { type, ...others } = query;
-    let _filter = { type };
+    let _filter = { ...(type && { type }) };
     for (const attr in others) {
       _filter[`${attr}.value`] = others[attr];
     }
