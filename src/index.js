@@ -1,8 +1,7 @@
 require("dotenv").config();
-const debug = require("debug")("index");
 
-const app = require("./app");
-const httpServer = require("http").createServer(app);
+const httpServer = require("http").createServer(require("./app"));
+const PORT = process.env.PORT || 8000;
 
 async function main() {
   await require("./db").connect(
@@ -10,11 +9,12 @@ async function main() {
     process.env.DB_NAME || "context-broker"
   );
 
-  const PORT = process.env.PORT || 8000;
-  httpServer.listen(PORT, () => debug("server is listening on port", PORT));
+  httpServer.listen(PORT, () =>
+    console.log("server is listening on port", PORT)
+  );
 }
 
 main().catch((error) => {
-  debug(error.message);
+  console.log(error.message);
   process.exit(1);
 });

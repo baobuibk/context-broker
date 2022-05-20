@@ -7,6 +7,7 @@ const debug = require("debug")("entity.route");
 router.post("/", async (req, res) => {
   const entityData = req.body;
 
+  console.log(entityData);
   try {
     result = await EntityDAO.insertOne(entityData);
     return res.json(result);
@@ -16,11 +17,30 @@ router.post("/", async (req, res) => {
   }
 });
 
+const isValidString = (string) => typeof string === "string" && string.length;
+const makeFields = (fields) =>
+  isValidString(fields)
+    ? fields.split(",")
+    : Array.isArray(fields) && fields.every(isValidString)
+    ? fields
+    : [];
+function makeObject(object) {
+  let _object = {};
+  try {
+    if (object) _object = JSON.parse(object);
+  } catch (error) {
+    console.log(error.message);
+  }
+  return _object;
+}
+
 router.get("/", async (req, res) => {
-  const { attrs, ...query } = req.query;
+  let _query = makeObject(req.query.query);
+  let _fields = makeFields(req.query.fields);
+  let _options = makeObject(req.query.options);
 
   try {
-    let result = await EntityDAO.find(query, attrs);
+    let result = await EntityDAO.find(_query, _fields, _options);
     return res.json(result);
   } catch (error) {
     debug(error.message);
@@ -30,10 +50,11 @@ router.get("/", async (req, res) => {
 
 router.get("/:entityId", async (req, res) => {
   const { entityId } = req.params;
-  const { fields } = req.query;
+  let _fields = makeFields(req.query.fields);
+  let _options = makeObject(req.query.options);
 
   try {
-    let result = await EntityDAO.findById(entityId, fields);
+    let result = await EntityDAO.findById(entityId, _fields, _options);
     return res.json(result);
   } catch (error) {
     debug(error);
@@ -42,13 +63,11 @@ router.get("/:entityId", async (req, res) => {
 });
 
 router.patch("/:entityId", async (req, res) => {
-  const { id } = req.query;
-
-  if (!id) res.status(400).send("require id");
-  const data = req.body;
+  const { entityId } = req.params;
+  const updates = req.body;
 
   try {
-    await EntityDAO.updateById({ id, data });
+    await EntityDAO.updateById(entityId, updates);
     return res.sendStatus(200);
   } catch (error) {
     debug(error.message);
@@ -57,14 +76,11 @@ router.patch("/:entityId", async (req, res) => {
 });
 
 router.delete("/:entityId", async (req, res) => {
-  const { id, ids, type, q } = req.query;
+  const { entityId } = req.params;
 
   try {
-    let result;
-    if (id) result = await EntityDAO.deleteById({ id });
-    else result = await EntityDAO.deleteMany({ ids, type, query });
-    debug(result);
-    return res.json(result);
+    await EntityDAO.deleteById(entityId);
+    return res.sendStatus(200);
   } catch (error) {
     debug(error.message);
     return res.sendStatus(500);

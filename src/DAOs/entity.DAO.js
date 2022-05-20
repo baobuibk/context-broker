@@ -1,12 +1,6 @@
 const { ObjectId } = require("mongodb");
-const debug = require("debug")("entity.DAO");
-// const redisClient = require("../redis");
 const entitySchema = require("../schemas/entity.schema");
-const axios = require("axios");
-
-const Ajv = require("ajv");
-const ajv = new Ajv();
-const validateEntity = ajv.compile(entitySchema);
+const flatten = require("flat");
 
 let Entity;
 const collName = "entity";
@@ -30,49 +24,51 @@ class EntityDAO {
 
   static async insertOne(entityData) {
     const result = await Entity.insertOne(entityData);
-    if (result.acknowledged) return { ...entityData, _id: result.insertedId };
+    if (result.acknowledged)
+      return { ...entityData, _id: result.insertedId, id: result.insertedId };
     else throw new Error("database error");
   }
 
-  static async findById(id, fields) {
-    let projection = {};
-    fields.split(",").forEach((field) => (projection[field] = 1));
-    const entity = await Entity.findOne({ _id: ObjectId(id) }).project(
-      projection
-    );
-
-    return entity;
-  }
-
-  static async find(query, attrs) {
+  static async find(query, fields, options) {
     let _projection = {};
-    if (attrs) attrs.split(",").forEach((attr) => (_projection[attr] = 1));
+    fields.forEach((field) => (_projection[field] = 1));
 
-    const { type, ...others } = query;
-    let _filter = { ...(type && { type }) };
-    for (const attr in others) {
-      _filter[`${attr}.value`] = others[attr];
+    let _filter = {};
+    for (const field in query) {
+      _filter[`${field}.value`] = query[field];
     }
 
-    return await Entity.find(_filter).project(_projection).toArray();
+    const entities = await Entity.find(_filter).project(_projection).toArray();
+    return entities.map((entity) => ({ ...entity, id: entity._id }));
   }
 
-  static async updateOneById({ id, data }) {
-    // if (!id || !ObjectId.isValid(id)) throw new Error("no id or invalid id");
-    // let setObject = makeSetObject(data);
-    // let result = await Entity.findOneAndUpdate(
-    //   { _id: ObjectId(id) },
-    //   { $set: setObject }
-    // );
-    // if (!result.ok) throw new Error("mongodb error");
-    // if (!result.value) throw new Error("not found");
+  static async findById(id, fields, options) {
+    let _projection = {};
+    fields.forEach((field) => (_projection[field] = 1));
+    const entity = await Entity.findOne(
+      { _id: ObjectId(id) },
+      { projection: _projection }
+    );
+    return entity ? { ...entity, id: entity._id } : null;
   }
 
-  static async deleteOneById({ id }) {
-    // if (!id || !ObjectId.isValid(id)) throw new Error("no id or invalid id");
-    // let filter = { _id: ObjectId(id) };
-    // await Entity.deleteOne(filter);
-    // return { status: "OK" };
+  static async updateById(entityId, updates) {
+    const { id, _id, type, ..._updates } = updates;
+    if (id || _id || type) throw new Error("cant change that");
+
+    let set = flatten(_updates);
+    let last = {};
+    for (const key in _updates) {
+      last[`${key}.lastModified`] = true;
+    }
+    await Entity.findOneAndUpdate(
+      { _id: ObjectId(entityId) },
+      { $set: set, $currentDate: last }
+    );
+  }
+
+  static async deleteById(id) {
+    await Entity.deleteOne({ _id: ObjectId(id) });
   }
 }
 
