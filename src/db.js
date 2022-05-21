@@ -2,27 +2,15 @@ const { MongoClient } = require("mongodb");
 
 const EntityDAO = require("./DAOs/entity.DAO");
 const CommandDAO = require("./DAOs/command.DAO");
-const DB_TIMEOUT_MS = Number(process.env.DB_TIMEOUT_MS) || 10000;
 
-let mongoClient;
 let db;
 
-const mongo = {
-  connect: async (dbUri, dbName) => {
-    if (!mongoClient && !db) {
-      mongoClient = new MongoClient(dbUri, {
-        serverSelectionTimeoutMS: DB_TIMEOUT_MS,
-      });
-      await mongoClient.connect();
-      console.log("mongodb client connect");
-
-      db = mongoClient.db(dbName);
-      await EntityDAO.init(db);
-      console.log("initialized EntityDAO");
-      await CommandDAO.init(db);
-      console.log("initilized CommandDAO");
-    }
-  },
+module.exports = async (dbUri, dbName, timeout) => {
+  if (!db) {
+    let client = new MongoClient(dbUri, { serverSelectionTimeoutMS: timeout });
+    await client.connect();
+    db = client.db(dbName);
+    await EntityDAO.init(db);
+    await CommandDAO.init(db);
+  }
 };
-
-module.exports = mongo;

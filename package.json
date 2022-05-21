@@ -4,8 +4,8 @@
   "description": "",
   "main": "./src/index.js",
   "scripts": {
-    "start": "nodemon",
-    "test": "jest tests/*"
+    "start": "node .",
+    "dev": "nodemon"
   },
   "keywords": [],
   "author": "",
@@ -21,8 +21,5 @@
     "mongodb": "^4.6.0",
     "morgan": "^1.10.0",
     "redis": "^4.1.0"
-  },
-  "devDependencies": {
-    "jest": "^28.1.0"
   }
 }
