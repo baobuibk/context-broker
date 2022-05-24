@@ -26,8 +26,7 @@ class EntityDAO {
 
   static async insertOne(entityData) {
     const result = await Entity.insertOne(entityData);
-    if (result.acknowledged)
-      return { ...entityData, _id: result.insertedId, id: result.insertedId };
+    if (result.acknowledged) return { ...entityData, _id: result.insertedId };
     else throw new Error("database error");
   }
 
