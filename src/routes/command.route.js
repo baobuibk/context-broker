@@ -1,8 +1,6 @@
 const express = require("express");
 const router = express.Router();
 
-// command controller
-
 const CommandDAO = require("../DAOs/command.DAO");
 const debug = require("debug")("command.route");
 

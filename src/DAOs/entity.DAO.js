@@ -10,15 +10,17 @@ class EntityDAO {
     const collList = await db
       .listCollections({ name: collName }, { nameOnly: true })
       .toArray();
-    if (collList.length)
+
+    if (!collList.length)
+      await db.createCollection(collName, {
+        validator: { $jsonSchema: entitySchema },
+      });
+    else
       await db.command({
         collMod: collName,
         validator: { $jsonSchema: entitySchema },
       });
-    else
-      await db.createCollection(collName, {
-        validator: { $jsonSchema: entitySchema },
-      });
+
     if (!Entity) Entity = db.collection(collName);
   }
 
