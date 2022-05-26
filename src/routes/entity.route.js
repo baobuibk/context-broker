@@ -58,7 +58,7 @@ router.get("/:entityId", async (req, res) => {
     return res.json(result);
   } catch (error) {
     debug(error);
-    return res.sendStatus(500);
+    return res.status(500).send(error.message);
   }
 });
 
