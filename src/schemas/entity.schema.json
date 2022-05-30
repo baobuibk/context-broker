@@ -7,7 +7,7 @@
     "type": {
       "type": "object",
       "properties": {
-        "type": { "enum": ["string"] },
+        "type": { "enum": ["string", "link"] },
         "value": { "type": "string" }
       }
     }
