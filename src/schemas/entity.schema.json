@@ -34,6 +34,13 @@
           "type": { "enum": ["boolean"] },
           "value": { "type": "boolean" }
         }
+      },
+      {
+        "type": "object",
+        "properties": {
+          "type": { "enum": ["array"] },
+          "value": { "type": "array" }
+        }
       }
     ]
   }
