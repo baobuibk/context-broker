@@ -1,5 +1,3 @@
-require("dotenv").config();
-
 const PORT = process.env.PORT || 8000;
 const dbUri = process.env.DB_URI || "mongodb://localhost:27017";
 const dbName = process.env.DB_NAME || "context-broker";
