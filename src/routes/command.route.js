@@ -2,7 +2,8 @@ const express = require("express");
 const router = express.Router();
 
 const CommandDAO = require("../DAOs/command.DAO");
-const debug = require("debug")("command.route");
+// const debug = require("debug")("command.route");
+const debug = console.log;
 
 router.post("/", async (req, res) => {
   const { rootId, deviceId, channels } = req.body;

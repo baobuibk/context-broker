@@ -1,4 +1,5 @@
-const debug = require("debug")("ContextPublisher");
+// const debug = require("debug")("ContextPublisher");
+const debug = console.log;
 const { createClient } = require("redis");
 
 class ContextPublisher {

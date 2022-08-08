@@ -2,7 +2,8 @@ const express = require("express");
 const router = express.Router();
 
 const EntityDAO = require("../DAOs/entity.DAO");
-const debug = require("debug")("entity.route");
+// const debug = require("debug")("entity.route");
+const debug = console.log;
 
 router.post("/", async (req, res) => {
   const entityData = req.body;
