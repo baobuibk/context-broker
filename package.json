@@ -8,9 +8,17 @@
     "dev": "nodemon src/index.js",
     "start": "node src/index.js"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/baobuibk/context-broker.git"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/baobuibk/context-broker/issues"
+  },
+  "homepage": "https://github.com/baobuibk/context-broker#readme",
   "dependencies": {
     "cors": "^2.8.5",
     "debug": "^4.3.4",
@@ -18,8 +26,11 @@
     "express": "^4.18.1",
     "flat": "^5.0.2",
     "lodash": "^4.17.21",
-    "mongodb": "^4.7.0",
+    "mongodb": "^4.8.1",
     "morgan": "^1.10.0",
-    "redis": "^4.1.0"
+    "redis": "^4.2.0"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.19"
   }
 }

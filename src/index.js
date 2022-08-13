@@ -1,5 +1,6 @@
-const PORT = process.env.PORT || 8000;
-const dbUri = process.env.DB_URI || "mongodb://localhost:27017";
+const PORT = process.env.CONTEXT_BROKER_PORT || 8000;
+const DB_HOST = process.env.MONGO_HOST || "localhost";
+const dbUri = "mongodb://" + DB_HOST + ":27017";
 const dbName = process.env.DB_NAME || "context-broker";
 const dbTimeout = Number(process.env.DB_TIMEOUT_MS) || 10000;
 
